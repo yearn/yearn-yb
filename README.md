@@ -1,66 +1,71 @@
-## Foundry
+# Yearn YB Locker
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+A permissioned lock management system for Yearn Boost (YB) tokens with delegated voting capabilities.
 
-Foundry consists of:
+## Architecture
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+The system consists of two main contracts:
 
-## Documentation
+### Locker
+- Holds and locks YB tokens in the veYB (voting escrow) contract
+- Provides generic execution interface for arbitrary calls
+- Owned by governance, with operator delegation
+- Pre-approves max tokens to escrow for gas efficiency
 
-https://book.getfoundry.sh/
+### Operator
+- Delegates specific voting and lock management permissions
+- Three permission tiers:
+  - **Gauge Voters**: Can vote on gauge weights
+  - **DAO Voters**: Can vote on DAO proposals
+  - **Lockers**: Can lock/increase YB tokens
+- All roles default to contract owner
 
 ## Usage
 
-### Build
+```solidity
+// Deploy
+Locker locker = new Locker(owner, ybToken, veYB);
+Operator operator = new Operator(locker, gaugeController, daoVoting);
+locker.setOperator(address(operator));
 
-```shell
-$ forge build
+// Grant permissions
+operator.setGaugeVoter(gaugeVoter, true);
+operator.setDaoVoter(daoVoter, true);
+operator.setLocker(lockerRole, true);
 ```
 
-### Test
+## Testing
 
-```shell
-$ forge test
+Tests use Foundry with mainnet forking:
+
+```bash
+# Set RPC URL
+export MAINNET_RPC_URL=<your-rpc-url>
+
+# Run tests
+forge test
+
+# Run with verbosity
+forge test -vvv
 ```
 
-### Format
+### CI Setup
 
-```shell
-$ forge fmt
-```
+To run tests in GitHub Actions:
 
-### Gas Snapshots
+1. Go to your repository Settings → Secrets and variables → Actions
+2. Click "New repository secret"
+3. Name: `MAINNET_RPC_URL`
+4. Value: Your mainnet RPC endpoint (e.g., Alchemy, Infura, or Llamarpc URL)
+5. Click "Add secret"
 
-```shell
-$ forge snapshot
-```
+The CI workflow will automatically use this secret when running tests.
 
-### Anvil
+## Development
 
-```shell
-$ anvil
-```
+Built with:
+- Solidity ^0.8.20
+- Foundry
+- OpenZeppelin Contracts
 
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+See `.claude/CLAUDE.md` for testing standards.
