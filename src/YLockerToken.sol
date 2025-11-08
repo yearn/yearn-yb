@@ -1,0 +1,80 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IOperator} from "src/interfaces/IOperator.sol";
+import {ILocker} from "src/interfaces/ILocker.sol";
+
+contract YLockerToken is ERC20 {
+    using SafeERC20 for IERC20;
+
+    address payable public immutable locker;
+    address public immutable token;
+    mapping(address => bool) public minters;
+
+    event MinterAdded(address indexed minter);
+    event MinterRemoved(address indexed minter);
+    event Swept(address indexed token, address indexed to, uint256 amount);
+
+    modifier onlyOperator() {
+        require(msg.sender == address(operator()), "Only locker");
+        _;
+    }
+
+    modifier onlyMinter() {
+        require(minters[msg.sender], "Only minter");
+        _;
+    }
+
+    constructor(
+        address _locker,
+        address _token,
+        string memory _name,
+        string memory _symbol
+    ) ERC20(_name, _symbol) {
+        require(_locker != address(0), "!valid");
+        require(_token != address(0), "!valid");
+        locker = payable(_locker);
+        token = _token;
+    }
+
+    function lock(uint256 amount, address to) external {
+        require(amount > 0, "Amount must be > 0");
+        require(IERC20(token).transferFrom(msg.sender, locker, amount));
+        operator().lock(amount);
+        _mint(to, amount);
+    }
+
+    function addMinter(address _minter) external onlyOperator {
+        require(_minter != address(0), "Invalid minter");
+        require(!minters[_minter], "Already minter");
+        minters[_minter] = true;
+        emit MinterAdded(_minter);
+    }
+
+    function removeMinter(address _minter) external onlyOperator {
+        require(minters[_minter], "Not a minter");
+        require(_minter != locker, "Cannot remove locker");
+        minters[_minter] = false;
+        emit MinterRemoved(_minter);
+    }
+
+    function mint(address to, uint256 amount) external onlyMinter {
+        _mint(to, amount);
+    }
+
+    function burn(address from, uint256 amount) external onlyMinter {
+        _burn(from, amount);
+    }
+
+    function sweep(address _token, address to, uint256 amount) external onlyOperator {
+        IERC20(_token).safeTransfer(to, amount);
+        emit Swept(_token, to, amount);
+    }
+
+    function operator() public view returns (IOperator) {
+        return IOperator(payable(ILocker(locker).operator()));
+    }
+}
