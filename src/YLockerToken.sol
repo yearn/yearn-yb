@@ -19,7 +19,7 @@ contract YLockerToken is ERC20 {
     event Swept(address indexed token, address indexed to, uint256 amount);
 
     modifier onlyOperator() {
-        require(msg.sender == address(operator()), "Only locker");
+        require(msg.sender == operator(), "Only locker");
         _;
     }
 
@@ -43,30 +43,12 @@ contract YLockerToken is ERC20 {
     function lock(uint256 amount, address to) external {
         require(amount > 0, "Amount must be > 0");
         require(IERC20(token).transferFrom(msg.sender, locker, amount));
-        operator().lock(amount);
+        IOperator(operator()).lock(amount);
         _mint(to, amount);
     }
 
-    function addMinter(address _minter) external onlyOperator {
-        require(_minter != address(0), "Invalid minter");
-        require(!minters[_minter], "Already minter");
-        minters[_minter] = true;
-        emit MinterAdded(_minter);
-    }
-
-    function removeMinter(address _minter) external onlyOperator {
-        require(minters[_minter], "Not a minter");
-        require(_minter != locker, "Cannot remove locker");
-        minters[_minter] = false;
-        emit MinterRemoved(_minter);
-    }
-
-    function mint(address to, uint256 amount) external onlyMinter {
+    function mint(address to, uint256 amount) external onlyOperator {
         _mint(to, amount);
-    }
-
-    function burn(address from, uint256 amount) external onlyMinter {
-        _burn(from, amount);
     }
 
     function sweep(address _token, address to, uint256 amount) external onlyOperator {
@@ -74,7 +56,7 @@ contract YLockerToken is ERC20 {
         emit Swept(_token, to, amount);
     }
 
-    function operator() public view returns (IOperator) {
-        return IOperator(payable(ILocker(locker).operator()));
+    function operator() public view returns (address) {
+        return ILocker(locker).operator();
     }
 }

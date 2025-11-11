@@ -9,6 +9,7 @@ import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 import { IYBGaugeController } from "src/interfaces/yb/IYBGaugeController.sol";
 import { IYBTokenVoting, Action, IMajorityVoting, MajorityVotingBase } from "src/interfaces/yb/IYBTokenVoting.sol";
 import { YB } from "src/utils/Constants.sol";
+import { YLockerToken } from "src/YLockerToken.sol";
 
 contract Setup is Test {
     uint256 public constant MAX_LOCK_TIME = 4 * 365 days;
@@ -20,6 +21,7 @@ contract Setup is Test {
     IYBVotingEscrow public escrow;
     IYBGaugeController public gaugeController;
     IYBTokenVoting public daoVoting;
+    IERC20 public yToken;
 
     function setUp() public virtual {
         string memory mainnetRpcUrl = vm.envOr("MAINNET_RPC_URL", string("https://eth.llamarpc.com"));
@@ -29,10 +31,14 @@ contract Setup is Test {
         escrow = IYBVotingEscrow(YB.VEYB);
         gaugeController = IYBGaugeController(YB.GAUGE_CONTROLLER);
         daoVoting = IYBTokenVoting(YB.DAO_VOTING);
-
+        
         locker = new Locker(address(this), address(token), address(escrow));
-        operator = new Operator(payable(address(locker)), address(gaugeController), address(daoVoting));
+        yToken = IERC20(payable(address(new YLockerToken(address(locker), address(token), "Yearn YB Token", "yYB"))));
+        operator = new Operator(payable(address(locker)), address(gaugeController), address(daoVoting), address(yToken));
         locker.setOperator(address(operator));
+
+        // Authorize yToken contract as a locker so users can call lock()
+        operator.authorizeLocker(address(yToken), true);
 
         // Initialize our lock
         createLock(address(locker), 1_000_000e18, block.timestamp + 365 days);
@@ -48,6 +54,20 @@ contract Setup is Test {
         escrow.create_lock(_amount, _unlockTime);
         vm.stopPrank();
         skip(1);
+    }
+
+    function isPermaLocked(address _locker) public view returns (bool) {
+        (, uint256 end) = escrow.locked(_locker);
+        if (end < block.timestamp) return false;
+        if (end == type(uint256).max) return true;
+        return false;
+    }
+
+    function toggleInfiniteLock(address _locker, bool _toggleMax) public {
+        if (isPermaLocked(_locker) && _toggleMax) return;
+        if (!isPermaLocked(_locker) && !_toggleMax) return;
+        vm.prank(_locker);
+        escrow.infinite_lock_toggle();
     }
 
     function increaseLock(address user, uint256 _amount) public {
@@ -80,10 +100,6 @@ contract Setup is Test {
 
     function getPastVotingPower(uint256 _ts) public view returns (uint256) {
         return escrow.getPastVotes(address(locker), _ts);
-    }
-
-    function getLatestProposalId() public view returns (uint256) {
-        return daoVoting.proposalCount() - 1;
     }
 
     function getProposalInfo(uint256 _proposalId) public view returns (bool, bool, MajorityVotingBase.ProposalParameters memory, IMajorityVoting.Tally memory, Action[] memory, uint256) {

@@ -87,7 +87,7 @@ interface IOperator {
     function getLockTimeRemaining() external view returns (uint256);
 
     /// @notice Get the current voting power / locked balance associated with this proxy.
-    function getLockedBalance() external view returns (uint256);
+    function getVotes() external view returns (uint256);
 
     // =========================
     // Admin Setters
@@ -102,9 +102,6 @@ interface IOperator {
     /// @notice Set or unset an address as authorized locker manager.
     function authorizeLocker(address _locker, bool _isLocker) external;
 
-    // =========================
-    // Receive
-    // =========================
-
-    receive() external payable;
+    /// @notice Callback for receiving ERC721 NFTs (veYB position transfers)
+    function nftTransferCallback(address from, uint256 tokenId, address recipient) external;
 }

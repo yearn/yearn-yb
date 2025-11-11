@@ -35,7 +35,7 @@ contract OperatorTest is Setup {
 
     function test_ConstructorRevertsWithZeroLocker() public {
         vm.expectRevert("!valid");
-        new Operator(payable(address(0)), address(gaugeController), address(daoVoting));
+        new Operator(payable(address(0)), address(gaugeController), address(daoVoting), address(yToken));
     }
 
     // ============================================
@@ -150,21 +150,21 @@ contract OperatorTest is Setup {
     // ============================================
 
     function test_Lock() public {
-        uint256 startBalance = operator.getLockedBalance();
+        uint256 startBalance = operator.getVotes();
         deal(address(token), address(locker), 1000e18);
         vm.prank(lockerUser);
         operator.lock(1000e18);
-        assertGt(operator.getLockedBalance(), startBalance, "Locked balance is not greater than previous");
+        assertGt(operator.getVotes(), startBalance, "Votes are not greater than previous");
     }
 
     function test_TransferAndLock() public {
-        uint256 startBalance = operator.getLockedBalance();
+        uint256 startBalance = operator.getVotes();
         deal(address(token), lockerUser, 1000e18);
         vm.startPrank(lockerUser);
         token.approve(address(operator), 1000e18);
         operator.transferAndLock(1000e18);
         vm.stopPrank();
-        assertGt(operator.getLockedBalance(), startBalance, "Locked balance is not greater than previous");
+        assertGt(operator.getVotes(), startBalance, "Votes are not greater than previous");
     }
 
     function test_LockAllowsOwner() public {
@@ -172,7 +172,7 @@ contract OperatorTest is Setup {
         deal(address(token), address(locker), amount);
         vm.prank(operator.owner());
         operator.lock(amount);
-        assertGe(operator.getLockedBalance(), amount, "Locked balance is not equal to amount");
+        assertGe(operator.getVotes(), amount, "Votes are not equal to amount");
     }
 
     function test_LockRevertsWhenNotAuthorized() public {
@@ -184,7 +184,7 @@ contract OperatorTest is Setup {
     function test_IncreaseLockRevertsWhenNotAuthorized() public {
         vm.expectRevert("!locker");
         vm.prank(user);
-        operator.increaseLock(500e18);
+        operator.lock(500e18);
     }
 
     // ============================================
@@ -226,8 +226,8 @@ contract OperatorTest is Setup {
         assertEq(operator.getLockTimeRemaining(), 0);
     }
 
-    function test_GetLockedBalance() public {
-        uint256 balance = operator.getLockedBalance();
+    function test_GetVotes() public view {
+        uint256 balance = operator.getVotes();
         assertGt(balance, 0);
     }
 

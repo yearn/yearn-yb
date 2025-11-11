@@ -3,10 +3,14 @@ pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IYBTokenVoting, IYBTokenVotingOption, IMajorityVoting } from "./interfaces/yb/IYBTokenVoting.sol";
-import { IYBGaugeController } from "./interfaces/yb/IYBGaugeController.sol";
-import { IYBVotingEscrow } from "./interfaces/yb/IYBVotingEscrow.sol";
-import { ILocker } from "./interfaces/ILocker.sol";
+import { IYBTokenVoting, IYBTokenVotingOption, IMajorityVoting } from "src/interfaces/yb/IYBTokenVoting.sol";
+import { IYBGaugeController } from "src/interfaces/yb/IYBGaugeController.sol";
+import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
+import { ILocker } from "src/interfaces/ILocker.sol";
+
+interface IToken {
+    function mint(address to, uint256 amount) external;
+}
 
 contract Operator {
     using SafeERC20 for IERC20;
@@ -14,9 +18,11 @@ contract Operator {
     ILocker public immutable locker;
     IYBVotingEscrow public immutable escrow;
     address public immutable token;
+    address public immutable yToken;
     address public immutable gaugeController;
     address public immutable daoVoting;
 
+    uint256 public cachedLockedAmount;
     mapping(address => bool) public gaugeVoters;
     mapping(address => bool) public daoVoters;
     mapping(address => bool) public lockers;
@@ -30,7 +36,7 @@ contract Operator {
         require(msg.sender == owner(), "!owner");
         _;
     }
-    
+
     modifier onlyGaugeVoters() {
         require(gaugeVoters[msg.sender] || msg.sender == owner(), "!gauge voter");
         _;
@@ -49,14 +55,21 @@ contract Operator {
     constructor(
         address payable _locker,
         address _gaugeController, 
-        address _daoVoting
+        address _daoVoting,
+        address _yToken
     ) {
         require(_locker != address(0), "!valid");
+        require(_gaugeController != address(0), "!valid");
+        require(_daoVoting != address(0), "!valid");
+        require(_yToken != address(0), "!valid");
         token = ILocker(_locker).TOKEN();
         escrow = IYBVotingEscrow(ILocker(_locker).escrow());
         locker = ILocker(_locker);
         gaugeController = _gaugeController;
+        yToken = _yToken;
         daoVoting = _daoVoting;
+
+        _cacheLockedAmount();
     }
 
     function owner() public view returns (address) {
@@ -79,19 +92,6 @@ contract Operator {
         _execute(daoVoting, abi.encodeWithSelector(IYBTokenVoting.vote.selector, _proposalId, _votes, false));
     }
 
-    // Lock Management
-    function lock(uint256 amount) external onlyLockers {
-        _execute(address(escrow), abi.encodeWithSelector(IYBVotingEscrow.increase_amount.selector, amount));
-    }
-
-    function transferAndLock(uint256 amount) external onlyLockers {
-        IERC20(token).safeTransferFrom(msg.sender, address(locker), amount);
-        _execute(address(escrow), abi.encodeWithSelector(IYBVotingEscrow.increase_amount.selector, amount));
-    }
-
-    function increaseLock(uint256 amount) external onlyLockers {
-        _execute(address(locker), abi.encodeWithSelector(IYBVotingEscrow.increase_amount.selector, amount));
-    }
     
     function getLockTimeRemaining() external view returns (uint256) {
         (, uint256 end) = escrow.locked(address(locker));
@@ -100,7 +100,7 @@ contract Operator {
         return end - block.timestamp;
     }
 
-    function getLockedBalance() external view returns (uint256) {
+    function getVotes() external view returns (uint256) {
         return escrow.getVotes(address(locker));
     }
 
@@ -132,6 +132,40 @@ contract Operator {
     function sweep(address _token, address to, uint256 amount) external onlyOwner {
         IERC20(_token).safeTransfer(to, amount);
         emit Swept(_token, to, amount);
+    }
+
+    // Lock Management
+    function lock(uint256 amount) external onlyLockers {
+        _execute(address(escrow), abi.encodeWithSelector(IYBVotingEscrow.increase_amount.selector, amount));
+        _cacheLockedAmount();
+    }
+
+    function _cacheLockedAmount() internal returns (uint256 amount) {
+        amount = getLockedAmount();
+        cachedLockedAmount = amount;
+    }
+
+    function getLockedAmount() public view returns (uint256) {
+        (int256 amount, ) = IYBVotingEscrow(escrow).locked(address(locker));
+        return uint256(amount);
+    }
+
+    function transferAndLock(uint256 amount) external onlyLockers {
+        IERC20(token).safeTransferFrom(msg.sender, address(locker), amount);
+        _execute(address(escrow), abi.encodeWithSelector(IYBVotingEscrow.increase_amount.selector, amount));
+    }
+
+    function nftTransferCallback(
+        address, // sender of the NFT
+        uint256, // token ID
+        address recipient // recipient of the minted yYB tokens
+    ) external {
+        require(msg.sender == address(locker), "!locker");
+        uint256 amount = cachedLockedAmount;
+        uint256 newAmount = _cacheLockedAmount();
+        amount = newAmount > amount ? newAmount - amount : 0; // amount gained
+        require(amount > 0, "No increase");
+        IToken(yToken).mint(recipient, amount);
     }
 
     receive() external payable {}
