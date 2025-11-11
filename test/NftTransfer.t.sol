@@ -75,6 +75,24 @@ contract NftTransferTest is Setup {
         assertGt(yToken.balanceOf(user), balanceBefore);
     }
 
+    function test_TransferNftWithEmptyDataGoesToSender() public {
+        uint256 userTokenId = escrow.tokenOfOwnerByIndex(user, 0);
+        uint256 balanceBefore = yToken.balanceOf(user);
+
+        // when: User transfers with empty data
+        bytes memory data = "";
+
+        vm.prank(user);
+        IERC721(address(escrow)).safeTransferFrom(
+            user,
+            address(locker),
+            userTokenId,
+            data
+        );
+
+        assertGt(yToken.balanceOf(user), balanceBefore);
+    }
+
     function test_TransferNftCallbackRevertsWhenCallerNotLocker() public {
         vm.expectRevert("!locker");
         vm.prank(user);

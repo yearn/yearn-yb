@@ -150,11 +150,6 @@ contract Operator {
         return uint256(amount);
     }
 
-    function transferAndLock(uint256 amount) external onlyLockers {
-        IERC20(token).safeTransferFrom(msg.sender, address(locker), amount);
-        _execute(address(escrow), abi.encodeWithSelector(IYBVotingEscrow.increase_amount.selector, amount));
-    }
-
     function nftTransferCallback(
         address, // sender of the NFT
         uint256, // token ID

@@ -12,19 +12,11 @@ contract YLockerToken is ERC20 {
 
     address payable public immutable locker;
     address public immutable token;
-    mapping(address => bool) public minters;
 
-    event MinterAdded(address indexed minter);
-    event MinterRemoved(address indexed minter);
     event Swept(address indexed token, address indexed to, uint256 amount);
 
     modifier onlyOperator() {
         require(msg.sender == operator(), "Only locker");
-        _;
-    }
-
-    modifier onlyMinter() {
-        require(minters[msg.sender], "Only minter");
         _;
     }
 
@@ -42,7 +34,7 @@ contract YLockerToken is ERC20 {
 
     function lock(uint256 amount, address to) external {
         require(amount > 0, "Amount must be > 0");
-        require(IERC20(token).transferFrom(msg.sender, locker, amount));
+        IERC20(token).safeTransferFrom(msg.sender, locker, amount);
         IOperator(operator()).lock(amount);
         _mint(to, amount);
     }

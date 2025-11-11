@@ -88,7 +88,7 @@ contract Locker is Ownable2Step, IERC721Receiver {
      * @dev Automatically mints yYB tokens to the specified recipient
      * @param from The address transferring the NFT
      * @param tokenId The NFT token ID
-     * @param data Encoded (recipient) for yYB minting
+     * @param data Encoded (recipient) for yYB minting. Default to sender if not provided.
      */
     function onERC721Received(
         address,
@@ -97,10 +97,11 @@ contract Locker is Ownable2Step, IERC721Receiver {
         bytes calldata data
     ) external override returns (bytes4) {
         require(msg.sender == escrow, "Only escrow NFTs");
-
-        // Decode recipient from data
-        address recipient = abi.decode(data, (address));
-        recipient = recipient == address(0) ? from : recipient;
+        address recipient = from;
+        if (data.length != 0) {
+            recipient = abi.decode(data, (address));
+            recipient = recipient == address(0) ? from : recipient;
+        }
 
         IOperator(operator).nftTransferCallback(
             from, 

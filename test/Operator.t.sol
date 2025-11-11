@@ -157,16 +157,6 @@ contract OperatorTest is Setup {
         assertGt(operator.getVotes(), startBalance, "Votes are not greater than previous");
     }
 
-    function test_TransferAndLock() public {
-        uint256 startBalance = operator.getVotes();
-        deal(address(token), lockerUser, 1000e18);
-        vm.startPrank(lockerUser);
-        token.approve(address(operator), 1000e18);
-        operator.transferAndLock(1000e18);
-        vm.stopPrank();
-        assertGt(operator.getVotes(), startBalance, "Votes are not greater than previous");
-    }
-
     function test_LockAllowsOwner() public {
         uint256 amount = 1000e18;
         deal(address(token), address(locker), amount);
