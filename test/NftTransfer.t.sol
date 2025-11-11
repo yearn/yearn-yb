@@ -21,16 +21,10 @@ contract NftTransferTest is Setup {
         assertEq(isPermaLocked(address(locker)), true, "Locker is not perma locked");
     }
 
-    // ============================================
-    // NFT Transfer Tests
-    // ============================================
-
     function test_TransferNftMintsYTokens() public {
         uint256 userTokenId = escrow.tokenOfOwnerByIndex(user, 0);
         uint256 recipientBalanceBefore = yToken.balanceOf(recipient);
         uint256 lockedAmountBefore = operator.getLockedAmount();
-
-        // when: User transfers their veYB NFT to the locker
         vm.prank(user);
         IERC721(address(escrow)).safeTransferFrom(
             user,
@@ -38,7 +32,6 @@ contract NftTransferTest is Setup {
             userTokenId,
             abi.encode(recipient) // data
         );
-        
         assertGt(yToken.balanceOf(recipient), recipientBalanceBefore);
         assertGt(operator.getLockedAmount(), lockedAmountBefore);
         assertEq(escrow.getVotes(user), 0);
@@ -47,11 +40,8 @@ contract NftTransferTest is Setup {
     }
 
     function test_TransferNftRevertsWhenCallerNotEscrow() public {
-        // given: A malicious contract tries to call onERC721Received
         uint256 fakeTokenId = 999;
         bytes memory data = abi.encode(recipient);
-
-        // when/then: Direct call to onERC721Received reverts
         vm.expectRevert("Only escrow NFTs");
         vm.prank(user);
         locker.onERC721Received(address(0), user, fakeTokenId, data);
@@ -60,10 +50,7 @@ contract NftTransferTest is Setup {
     function test_TransferNftWithZeroRecipientGoesToSender() public {
         uint256 userTokenId = escrow.tokenOfOwnerByIndex(user, 0);
         uint256 balanceBefore = yToken.balanceOf(user);
-
-        // when: User transfers with zero address as recipient
         bytes memory data = abi.encode(address(0));
-
         vm.prank(user);
         IERC721(address(escrow)).safeTransferFrom(
             user,
@@ -78,18 +65,13 @@ contract NftTransferTest is Setup {
     function test_TransferNftWithEmptyDataGoesToSender() public {
         uint256 userTokenId = escrow.tokenOfOwnerByIndex(user, 0);
         uint256 balanceBefore = yToken.balanceOf(user);
-
-        // when: User transfers with empty data
-        bytes memory data = "";
-
         vm.prank(user);
         IERC721(address(escrow)).safeTransferFrom(
             user,
             address(locker),
             userTokenId,
-            data
+            "" // empty data
         );
-
         assertGt(yToken.balanceOf(user), balanceBefore);
     }
 
@@ -102,8 +84,6 @@ contract NftTransferTest is Setup {
     function test_TransferNftUpdatesOperatorCache() public {
         uint256 userTokenId = escrow.tokenOfOwnerByIndex(user, 0);
         uint256 cachedBefore = operator.cachedLockedAmount();
-
-        // when: User transfers their veYB NFT to the locker
         bytes memory data = abi.encode(recipient);
         vm.prank(user);
         IERC721(address(escrow)).safeTransferFrom(
@@ -112,16 +92,12 @@ contract NftTransferTest is Setup {
             userTokenId,
             data
         );
-
-        // then: Operator's cached amount is updated
         assertGt(operator.cachedLockedAmount(), cachedBefore);
     }
 
     function test_TransferNftMintsCorrectAmount() public {
         uint256 userTokenId = escrow.tokenOfOwnerByIndex(user, 0);
         uint256 cachedBefore = operator.cachedLockedAmount();
-
-        // when: User transfers their veYB NFT to the locker
         bytes memory data = abi.encode(recipient);
         vm.prank(user);
         IERC721(address(escrow)).safeTransferFrom(
@@ -130,18 +106,15 @@ contract NftTransferTest is Setup {
             userTokenId,
             data
         );
-
-        // then: Recipient receives yYB tokens equal to the increase
         uint256 cachedAfter = operator.cachedLockedAmount();
         uint256 expectedMint = cachedAfter - cachedBefore;
+        assertGt(expectedMint, 0);
         assertEq(yToken.balanceOf(recipient), expectedMint);
     }
 
     function test_TransferNftAllowsDifferentRecipient() public {
         uint256 userTokenId = escrow.tokenOfOwnerByIndex(user, 0);
         address differentRecipient = address(0x999);
-
-        // when: User transfers with a different recipient
         bytes memory data = abi.encode(differentRecipient);
         vm.prank(user);
         IERC721(address(escrow)).safeTransferFrom(
@@ -150,8 +123,6 @@ contract NftTransferTest is Setup {
             userTokenId,
             data
         );
-
-        // then: Different recipient receives the yYB tokens, not the user
         assertGt(yToken.balanceOf(differentRecipient), 0);
         assertEq(yToken.balanceOf(user), 0);
     }

@@ -7,22 +7,15 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import { IOperator } from "src/interfaces/IOperator.sol";
-import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 
 contract Locker is Ownable2Step, IERC721Receiver {
     using SafeERC20 for IERC20;
     IERC20 public immutable TOKEN;
     address public immutable escrow;
     address public operator;
-    uint256 public lastLockedAmount;
 
     event OperatorUpdated(address operator);
     event Executed(address indexed caller, address indexed to);
-
-    modifier onlyOwnerOrOperator() {
-        require(msg.sender == owner() || msg.sender == operator, "!authorized");
-        _;
-    }
 
     constructor(
         address _owner,
