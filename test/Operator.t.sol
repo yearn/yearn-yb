@@ -252,4 +252,48 @@ contract OperatorTest is Setup {
         }
         return (gauges, weights);
     }
+
+    // ============================================
+    // Migrate Operator Tests
+    // ============================================
+
+    function test_MigrateToNewOperator() public {
+        // given: Original operator has state and authorizations
+        assertTrue(operator.gaugeVoters(gaugeVoter));
+        assertTrue(operator.daoVoters(daoVoter));
+        assertTrue(operator.lockers(lockerUser));
+
+        // when: Deploy new operator and migrate
+        newOperator = new Operator(
+            payable(address(locker)),
+            address(gaugeController),
+            address(daoVoting),
+            address(yToken)
+        );
+
+        vm.startPrank(locker.owner());
+        // Re-authorize roles on new operator
+        newOperator.authorizeDaoVoter(daoVoter, true);
+        newOperator.authorizeGaugeVoter(gaugeVoter, true);
+        newOperator.authorizeLocker(lockerUser, true);
+
+        // Switch locker to new operator
+        locker.setOperator(address(newOperator));
+        vm.stopPrank();
+
+        // then: New operator has correct state
+        assertEq(locker.operator(), address(newOperator));
+        assertTrue(newOperator.gaugeVoters(gaugeVoter));
+        assertTrue(newOperator.daoVoters(daoVoter));
+        assertTrue(newOperator.lockers(lockerUser));
+
+        // Verify old operator cannot execute via locker
+        vm.prank(address(operator));
+        vm.expectRevert("!authorized");
+        locker.safeExecute(
+            payable(address(escrow)),
+            0,
+            abi.encodeWithSelector(escrow.increase_amount.selector, 1000e18)
+        );
+    }
 }

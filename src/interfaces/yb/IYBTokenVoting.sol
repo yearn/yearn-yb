@@ -99,15 +99,15 @@ interface IYBTokenVoting {
         IMajorityVoting.Tally memory _votes
     ) external view returns (bool);
 
-    function createProposal(
-        bytes memory _metadata,
-        Action[] memory _actions,
-        uint256 _allowFailureMap,
-        uint64 _startDate,
-        uint64 _endDate,
-        uint8 _voteOption,
-        bool _tryEarlyExecution
-    ) external returns (uint256 proposalId);
+    // function createProposal(
+    //     bytes memory _metadata,
+    //     Action[] memory _actions,
+    //     uint256 _allowFailureMap,
+    //     uint64 _startDate,
+    //     uint64 _endDate,
+    //     uint8 _voteOption,
+    //     bool _tryEarlyExecution
+    // ) external returns (uint256 proposalId);
 
     function createProposal(
         bytes memory _metadata,

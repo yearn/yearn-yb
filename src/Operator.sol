@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IYBTokenVoting, IYBTokenVotingOption, IMajorityVoting } from "src/interfaces/yb/IYBTokenVoting.sol";
+import { IYBTokenVoting, IYBTokenVotingOption, IMajorityVoting, Action } from "src/interfaces/yb/IYBTokenVoting.sol";
 import { IYBGaugeController } from "src/interfaces/yb/IYBGaugeController.sol";
 import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 import { ILocker } from "src/interfaces/ILocker.sol";
@@ -69,7 +69,10 @@ contract Operator {
         yToken = _yToken;
         daoVoting = _daoVoting;
 
-        _cacheLockedAmount();
+        _updateCachedLockedAmount();
+
+        lockers[_yToken] = true;
+        emit LockerUpdated(_yToken, true);
     }
 
     function owner() public view returns (address) {
@@ -82,12 +85,17 @@ contract Operator {
         _execute(gaugeController, abi.encodeWithSelector(IYBGaugeController.vote_for_gauge_weights.selector, _gauges, _weights));
     }
 
-    // DAO Vote
+    // Create DAO Proposal
+    function createDaoProposal(bytes memory _metadata, Action[] memory _actions, uint64 _startDate, uint64 _endDate, bytes memory _data) external onlyDaoVoters {
+        _execute(address(daoVoting), abi.encodeWithSelector(IYBTokenVoting.createProposal.selector, _metadata, _actions, _startDate, _endDate, _data));
+    }
+
+    // Cast DAO Vote
     function castDaoVote(uint256 _proposalId, uint8 _voteOption) external onlyDaoVoters {
         _execute(daoVoting, abi.encodeWithSelector(IYBTokenVotingOption.vote.selector, _proposalId, _voteOption, false));
     }
 
-    // DAO Vote with split options
+    // Cast DAO Vote with split options
     function castSplitDaoVote(uint256 _proposalId, IMajorityVoting.Tally memory _votes) external onlyDaoVoters {
         _execute(daoVoting, abi.encodeWithSelector(IYBTokenVoting.vote.selector, _proposalId, _votes, false));
     }
@@ -104,13 +112,9 @@ contract Operator {
         return escrow.getVotes(address(locker));
     }
 
-    // Locker Execution
+    // Execution via Locker
     function _execute(address _to, bytes memory _data) internal returns (bool success, bytes memory result) {
-        return _executeWithValue(0, _to, _data);
-    }
-
-    function _executeWithValue(uint256 _value, address _to, bytes memory _data) internal returns (bool success, bytes memory result) {
-        return locker.safeExecute{value: _value}(payable(_to), _value, _data);
+        return locker.safeExecute(payable(_to), 0, _data);
     }
 
     // Setters
@@ -137,12 +141,7 @@ contract Operator {
     // Lock Management
     function lock(uint256 amount) external onlyLockers {
         _execute(address(escrow), abi.encodeWithSelector(IYBVotingEscrow.increase_amount.selector, amount));
-        _cacheLockedAmount();
-    }
-
-    function _cacheLockedAmount() internal returns (uint256 amount) {
-        amount = getLockedAmount();
-        cachedLockedAmount = amount;
+        _updateCachedLockedAmount();
     }
 
     function getLockedAmount() public view returns (uint256) {
@@ -157,11 +156,15 @@ contract Operator {
     ) external {
         require(msg.sender == address(locker), "!locker");
         uint256 amount = cachedLockedAmount;
-        uint256 newAmount = _cacheLockedAmount();
+        uint256 newAmount = _updateCachedLockedAmount();
         amount = newAmount > amount ? newAmount - amount : 0; // amount gained
         require(amount > 0, "No increase");
         IToken(yToken).mint(recipient, amount);
     }
 
-    receive() external payable {}
+    // Write cached locked amount to storage
+    function _updateCachedLockedAmount() internal returns (uint256 amount) {
+        amount = getLockedAmount();
+        cachedLockedAmount = amount;
+    }
 }

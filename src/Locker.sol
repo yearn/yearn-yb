@@ -79,13 +79,13 @@ contract Locker is Ownable2Step, IERC721Receiver {
     /**
      * @notice Callback for receiving ERC721 NFTs (veYB position transfers)
      * @dev Automatically mints yYB tokens to the specified recipient
-     * @param from The address transferring the NFT
+     * @param from The owner of the NFT transferring being transferred
      * @param tokenId The NFT token ID
      * @param data Encoded (recipient) for yYB minting. Default to sender if not provided.
      */
     function onERC721Received(
-        address,
-        address from,
+        address, // caller
+        address from, // owner of the NFT
         uint256 tokenId,
         bytes calldata data
     ) external override returns (bytes4) {
