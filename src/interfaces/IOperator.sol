@@ -79,10 +79,6 @@ interface IOperator {
     /// @param amount Amount to lock.
     function lock(uint256 amount) external;
 
-    /// @notice Increase the lock via the Locker.
-    /// @param amount Amount to add to the lock.
-    function increaseLock(uint256 amount) external;
-
     /// @notice Get remaining lock time for the underlying Locker’s position.
     function getLockTimeRemaining() external view returns (uint256);
 
