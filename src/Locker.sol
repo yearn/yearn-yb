@@ -7,11 +7,14 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import { IOperator } from "src/interfaces/IOperator.sol";
+import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 
 contract Locker is Ownable2Step, IERC721Receiver {
     using SafeERC20 for IERC20;
+
     IERC20 public immutable TOKEN;
     address public immutable escrow;
+    bytes4 public immutable INCREASE_AMOUNT_SELECTOR;
     address public operator;
 
     event OperatorUpdated(address operator);
@@ -27,6 +30,7 @@ contract Locker is Ownable2Step, IERC721Receiver {
         TOKEN = IERC20(_token);
         escrow = _escrow;
         IERC20(_token).forceApprove(_escrow, type(uint256).max);
+        INCREASE_AMOUNT_SELECTOR = IYBVotingEscrow.increase_amount.selector;
     }
 
     function setOperator(address _operator) external onlyOwner {
@@ -72,6 +76,13 @@ contract Locker is Ownable2Step, IERC721Receiver {
         bytes calldata _data
     ) internal returns (bool success, bytes memory result) {
         require(msg.sender == operator || msg.sender == owner(), "!authorized");
+
+        // If calling escrow with blocked selector, must be operator
+        if (_to == escrow && _data.length >= 4) {
+            bytes4 selector = bytes4(_data[:4]);
+            if (selector == INCREASE_AMOUNT_SELECTOR) require(msg.sender == operator, "Blocked selector");
+        }
+
         (success, result) = _to.call{value: _value}(_data);
         emit Executed(msg.sender, _to);
     }
@@ -95,12 +106,8 @@ contract Locker is Ownable2Step, IERC721Receiver {
             recipient = abi.decode(data, (address));
             recipient = recipient == address(0) ? from : recipient;
         }
-
-        IOperator(operator).nftTransferCallback(
-            from, 
-            tokenId,
-            recipient
-        );
+        address _operator = operator;
+        if (_operator != address(0)) IOperator(_operator).nftTransferCallback(from, tokenId, recipient);
 
         return IERC721Receiver.onERC721Received.selector;
     }

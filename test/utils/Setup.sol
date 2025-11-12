@@ -38,7 +38,7 @@ contract Setup is Test {
         locker.setOperator(address(operator));
 
         // Authorize yToken contract as a locker so users can call lock()
-        operator.authorizeLocker(address(yToken), true);
+        assertTrue(operator.lockers(address(yToken)));
 
         // Initialize our lock
         createLock(address(locker), 1_000_000e18, block.timestamp + 365 days);

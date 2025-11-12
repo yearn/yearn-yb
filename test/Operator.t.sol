@@ -264,7 +264,7 @@ contract OperatorTest is Setup {
         assertTrue(operator.lockers(lockerUser));
 
         // when: Deploy new operator and migrate
-        newOperator = new Operator(
+        Operator newOperator = new Operator(
             payable(address(locker)),
             address(gaugeController),
             address(daoVoting),
