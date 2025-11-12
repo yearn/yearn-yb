@@ -31,6 +31,7 @@ contract Locker is Ownable2Step, IERC721Receiver {
         escrow = _escrow;
         IERC20(_token).forceApprove(_escrow, type(uint256).max);
         INCREASE_AMOUNT_SELECTOR = IYBVotingEscrow.increase_amount.selector;
+        _createLock();
     }
 
     function setOperator(address _operator) external onlyOwner {
@@ -77,7 +78,8 @@ contract Locker is Ownable2Step, IERC721Receiver {
     ) internal returns (bool success, bytes memory result) {
         require(msg.sender == operator || msg.sender == owner(), "!authorized");
 
-        // If calling escrow with blocked selector, must be operator
+        // Prevent any calls to increase_amount if not Operator.
+        // This cache updates from being bypassed.
         if (_to == escrow && _data.length >= 4) {
             bytes4 selector = bytes4(_data[:4]);
             if (selector == INCREASE_AMOUNT_SELECTOR) require(msg.sender == operator, "Blocked selector");
@@ -110,6 +112,13 @@ contract Locker is Ownable2Step, IERC721Receiver {
         if (_operator != address(0)) IOperator(_operator).nftTransferCallback(from, tokenId, recipient);
 
         return IERC721Receiver.onERC721Received.selector;
+    }
+
+    function _createLock() internal {
+        uint256 amount = TOKEN.balanceOf(address(this));
+        require(amount >= 1e18, "lock creation failed");
+        IYBVotingEscrow(escrow).create_lock(amount, block.timestamp + 365 days);
+        IYBVotingEscrow(escrow).infinite_lock_toggle();
     }
 
     receive() external payable {}

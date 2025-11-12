@@ -27,6 +27,7 @@ contract OperatorTest is Setup {
         operator.authorizeLocker(lockerUser, true);
         vm.stopPrank();
         assertGt(getPastVotingPower(block.timestamp), 0, "Voting power is 0");
+        increaseLock(address(locker), 1_000_000e18);
     }
 
     // ============================================
@@ -182,6 +183,7 @@ contract OperatorTest is Setup {
     // ============================================
 
     function test_GetLockTimeRemaining() public {
+        toggleInfiniteLock(address(locker), false);
         uint256 remaining = operator.getLockTimeRemaining();
         assertGt(remaining, 0, "Remaining is 0");
         skip(100 days);
@@ -205,6 +207,7 @@ contract OperatorTest is Setup {
     }
 
     function test_GetLockTimeRemainingReturnsZeroWhenExpired() public {
+        toggleInfiniteLock(address(locker), false);
         // Skip past the unlock time
         uint256 remaining = operator.getLockTimeRemaining();
         if (remaining == type(uint256).max) {

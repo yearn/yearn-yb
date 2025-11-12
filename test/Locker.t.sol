@@ -171,10 +171,9 @@ contract LockerTest is Setup {
 
     // Test ability to transfer lock to a new contract
     function test_MigrateToNewLocker() public {
+        address predictedLockerAddress = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        deal(address(token), predictedLockerAddress, 1e18);
         Locker newLocker = new Locker(address(this), address(token), address(escrow));
-        createLock(address(newLocker), 1e18, block.timestamp + MAX_LOCK_TIME);
-        toggleInfiniteLock(address(newLocker), true);
-        toggleInfiniteLock(address(locker), true);
 
         uint256 tokenId = escrow.tokenOfOwnerByIndex(address(locker), 0);
         vm.prank(address(locker));

@@ -32,16 +32,19 @@ contract Setup is Test {
         gaugeController = IYBGaugeController(YB.GAUGE_CONTROLLER);
         daoVoting = IYBTokenVoting(YB.DAO_VOTING);
         
+        address predictedLockerAddress = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        deal(address(token), predictedLockerAddress, 1e18);
+
         locker = new Locker(address(this), address(token), address(escrow));
         yToken = IERC20(payable(address(new YLockerToken(address(locker), address(token), "Yearn YB Token", "yYB"))));
         operator = new Operator(payable(address(locker)), address(gaugeController), address(daoVoting), address(yToken));
         locker.setOperator(address(operator));
 
-        // Authorize yToken contract as a locker so users can call lock()
+        // yToken should automatically be authorized as a locker, allowing users to call lock()
         assertTrue(operator.lockers(address(yToken)));
 
-        // Initialize our lock
-        createLock(address(locker), 1_000_000e18, block.timestamp + 365 days);
+        // Voter power realization requires a 1s delay
+        skip(1);
     }
 
     function createLock(address user, uint256 _amount, uint256 _unlockTime) public {
