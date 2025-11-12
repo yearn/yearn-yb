@@ -1,9 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { TestBase } from "forge-std/Test.sol";
-
 library Protocol {
+    address constant OWNER = 0x4444AAAACDBa5580282365e25b16309Bd770ce4a;
+    address constant LOCKER = 0x0000000C90799449af8eE0B240Da639144a36C6A;
+    address constant OPERATOR = 0x1111111Ecd5Ae05422aeCe517072ec33Dbf34af9;
+    address constant YTOKEN = 0x22222222aEA0076fCA927a3f44dc0B4FdF9479D6;
+}
+
+library YBS {
+    address constant YBS_YB = 0xd1939a4B7b49edBdC668fA32Ba717Cf93E525051;
+    address constant UTILS_YB = 0xcC94635a39678265079287058105657326a38624;
+    address constant DISTRIBUTOR_YB = 0x9C5733145417B0C8cd0A799Db054664F81a7b336;
+    
+    address constant REGISTRY = 0x262be1d31d0754399d8d5dc63B99c22146E9f738;
+    address constant STAKE_TOKEN = 0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F;
+    address constant OWNER = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
 }
 
 library YB {
@@ -13,4 +25,12 @@ library YB {
     address constant STAKE_ZAP = 0xE862bC39B8D5F12D8c4117d3e2D493Dc20051EC6;
     address constant DAO_VOTING = 0x2be6670DE1cCEC715bDBBa2e3A6C1A05E496ec78;
     address constant DAO = 0x42F2A41A0D0e65A440813190880c8a65124895Fa;
+}
+
+library CreateX {
+    address constant FACTORY = 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed;
+    // CREATE3 Salts
+    bytes32 constant SALT_LOCKER = 0x4444aaaacdba5580282365e25b16309bd770ce4a009fcc93897e0b2700f8ab4c;
+    bytes32 constant SALT_OPERATOR = 0x4444aaaacdba5580282365e25b16309bd770ce4a00089586a306e5c9037ec220;
+    bytes32 constant SALT_YTOKEN = 0x4444aaaacdba5580282365e25b16309bd770ce4a0010b1e704a781420081c557;
 }

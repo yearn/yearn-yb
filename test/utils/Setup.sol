@@ -5,11 +5,11 @@ import { Test } from "forge-std/Test.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Locker } from "src/Locker.sol";
 import { Operator } from "src/Operator.sol";
+import { YToken } from "src/YToken.sol";
 import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 import { IYBGaugeController } from "src/interfaces/yb/IYBGaugeController.sol";
 import { IYBTokenVoting, Action, IMajorityVoting, MajorityVotingBase } from "src/interfaces/yb/IYBTokenVoting.sol";
 import { YB } from "src/utils/Constants.sol";
-import { YLockerToken } from "src/YLockerToken.sol";
 
 contract Setup is Test {
     uint256 public constant MAX_LOCK_TIME = 4 * 365 days;
@@ -36,7 +36,7 @@ contract Setup is Test {
         deal(address(token), predictedLockerAddress, 1e18);
 
         locker = new Locker(address(this), address(token), address(escrow));
-        yToken = IERC20(payable(address(new YLockerToken(address(locker), address(token), "Yearn YB Token", "yYB"))));
+        yToken = IERC20(payable(address(new YToken(address(locker), address(token), "Yearn YB Token", "yYB"))));
         operator = new Operator(payable(address(locker)), address(gaugeController), address(daoVoting), address(yToken));
         locker.setOperator(address(operator));
 

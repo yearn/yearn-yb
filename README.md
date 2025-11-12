@@ -6,7 +6,7 @@ Yearn Finance Liquid locker for Yield Basis (YB).
 
 - **Locker** - Holds veYB position and executes arbitrary calls
 - **Operator** - Manages and authenticates all Locker actions
-- **YLockerToken** - Liquid ERC20 (1:1 backed by max-locked YB)
+- **YToken** - Liquid ERC20 (1:1 backed by max-locked YB)
 
 ## Testing
 

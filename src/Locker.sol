@@ -29,8 +29,8 @@ contract Locker is Ownable2Step, IERC721Receiver {
         require(_escrow != address(0), "!valid");
         TOKEN = IERC20(_token);
         escrow = _escrow;
-        IERC20(_token).forceApprove(_escrow, type(uint256).max);
         INCREASE_AMOUNT_SELECTOR = IYBVotingEscrow.increase_amount.selector;
+        IERC20(_token).forceApprove(_escrow, type(uint256).max);
         _createLock();
     }
 
@@ -116,7 +116,7 @@ contract Locker is Ownable2Step, IERC721Receiver {
 
     function _createLock() internal {
         uint256 amount = TOKEN.balanceOf(address(this));
-        require(amount >= 1e18, "lock creation failed");
+        require(amount >= 1e18, "insufficient funds for lock creation");
         IYBVotingEscrow(escrow).create_lock(amount, block.timestamp + 365 days);
         IYBVotingEscrow(escrow).infinite_lock_toggle();
     }

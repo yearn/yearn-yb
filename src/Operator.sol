@@ -53,7 +53,7 @@ contract Operator {
     }
     
     constructor(
-        address payable _locker,
+        address _locker,
         address _gaugeController, 
         address _daoVoting,
         address _yToken
@@ -114,7 +114,7 @@ contract Operator {
 
     // Execution via Locker
     function _execute(address _to, bytes memory _data) internal returns (bool success, bytes memory result) {
-        return locker.safeExecute(payable(_to), 0, _data);
+        return locker.safeExecute(_to, 0, _data);
     }
 
     // Setters

@@ -17,16 +17,16 @@ interface ILocker {
     function setOperator(address _operator) external;
 
     function safeExecute(
-        address payable _to,
+        address _to,
         uint256 _value,
         bytes calldata _data
-    ) external payable returns (bool success, bytes memory result);
+    ) external returns (bool success, bytes memory result);
 
     function execute(
-        address payable _to,
+        address _to,
         uint256 _value,
         bytes calldata _data
-    ) external payable returns (bool success, bytes memory result);
+    ) external returns (bool success, bytes memory result);
 
     function onERC721Received(
         address operator,

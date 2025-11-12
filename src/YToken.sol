@@ -7,7 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IOperator} from "src/interfaces/IOperator.sol";
 import {ILocker} from "src/interfaces/ILocker.sol";
 
-contract YLockerToken is ERC20 {
+contract YToken is ERC20 {
     using SafeERC20 for IERC20;
 
     address payable public immutable locker;

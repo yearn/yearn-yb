@@ -2,10 +2,10 @@
 pragma solidity ^0.8.20;
 
 import { Setup } from "test/utils/Setup.sol";
-import { YLockerToken } from "src/YLockerToken.sol";
+import { YToken } from "src/YToken.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 
-contract YLockerTokenTest is Setup {
+contract YTokenTest is Setup {
     address public user = address(0x123);
     address public recipient = address(0x456);
 
@@ -19,7 +19,7 @@ contract YLockerTokenTest is Setup {
     // ============================================
 
     function test_ConstructorSetsImmutables() public {
-        YLockerToken newToken = new YLockerToken(
+        YToken newToken = new YToken(
             address(locker),
             address(token),
             "Test Token",
@@ -49,7 +49,7 @@ contract YLockerTokenTest is Setup {
         // capture current ve supply before lock (the ve contract exposes it as `supply()` or equivalent)
         uint256 supplyBefore = escrow.supply();
 
-        YLockerToken(address(yToken)).lock(lockAmount, recipient);
+        YToken(address(yToken)).lock(lockAmount, recipient);
         vm.stopPrank();
 
         // compute the effective rounded value used by the ve contract
@@ -68,7 +68,7 @@ contract YLockerTokenTest is Setup {
 
         // when/then: Lock reverts with zero amount
         vm.expectRevert("Amount must be > 0");
-        YLockerToken(address(yToken)).lock(0, recipient);
+        YToken(address(yToken)).lock(0, recipient);
         vm.stopPrank();
     }
 
@@ -81,7 +81,7 @@ contract YLockerTokenTest is Setup {
         token.approve(address(yToken), lockAmount);
 
         // when: User locks to a different address
-        YLockerToken(address(yToken)).lock(lockAmount, recipient);
+        YToken(address(yToken)).lock(lockAmount, recipient);
         vm.stopPrank();
 
         // then: Recipient receives yTokens, not the user
@@ -100,7 +100,7 @@ contract YLockerTokenTest is Setup {
 
         // when: Operator calls mint
         vm.prank(address(operator));
-        YLockerToken(address(yToken)).mint(recipient, mintAmount);
+        YToken(address(yToken)).mint(recipient, mintAmount);
 
         // then: Tokens are minted to recipient
         assertEq(yToken.balanceOf(recipient), recipientBalanceBefore + mintAmount);
@@ -113,7 +113,7 @@ contract YLockerTokenTest is Setup {
         // when/then: Mint reverts when called by non-operator
         vm.expectRevert("Only locker");
         vm.prank(user);
-        YLockerToken(address(yToken)).mint(recipient, mintAmount);
+        YToken(address(yToken)).mint(recipient, mintAmount);
     }
 
     // ============================================
@@ -130,7 +130,7 @@ contract YLockerTokenTest is Setup {
 
         // when: Operator sweeps tokens
         vm.prank(address(operator));
-        YLockerToken(address(yToken)).sweep(address(someToken), recipient, sweepAmount);
+        YToken(address(yToken)).sweep(address(someToken), recipient, sweepAmount);
 
         // then: Tokens transferred to recipient
         assertEq(someToken.balanceOf(recipient), recipientBalanceBefore + sweepAmount);
@@ -145,6 +145,6 @@ contract YLockerTokenTest is Setup {
         // when/then: Sweep reverts when called by non-operator
         vm.expectRevert("Only locker");
         vm.prank(user);
-        YLockerToken(address(yToken)).sweep(address(someToken), recipient, 500e18);
+        YToken(address(yToken)).sweep(address(someToken), recipient, 500e18);
     }
 }
