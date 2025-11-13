@@ -48,7 +48,7 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
     }
 
     function isYBSDeployed() public view returns (bool) {
-        return addressHasCode(YBS.YBS_YB);
+        return false;//addressHasCode(YBS.YBS_YB);
     }
 
     function deployLocker() public returns (address) {
@@ -108,10 +108,10 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
         // vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
         vm.startBroadcast(YBS.OWNER);
         (ybs, distributor, utils) = IYBSRegistry(YBS.REGISTRY).createNewDeployment(
-            YB.TOKEN,
+            YBS.STAKE_TOKEN,
             4, // max_stake_growth_weeks
             0, // start_time
-            YBS.STAKE_TOKEN
+            YBS.REWARD_TOKEN
         );
         vm.stopBroadcast();
     }

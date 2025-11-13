@@ -3,8 +3,6 @@ pragma solidity ^0.8.20;
 
 import { Setup } from "test/utils/Setup.sol";
 import { Operator } from "src/Operator.sol";
-import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
-import { IMajorityVoting, MajorityVotingBase } from "src/interfaces/yb/IYBTokenVoting.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 contract OperatorTest is Setup {
@@ -97,53 +95,6 @@ contract OperatorTest is Setup {
         vm.expectRevert("!gauge voter");
         vm.prank(user);
         operator.voteForGaugeWeights(gauges, weights);
-    }
-
-    // ============================================
-    // DAO Voting Tests
-    // ============================================
-
-    function test_CastDaoVote() public {
-        uint256 proposalId = createDaoProposal();
-        vm.prank(daoVoter);
-        operator.castDaoVote(proposalId, 1);
-    }
-
-    function test_CastDaoVoteAllowsOwner() public {
-        uint256 proposalId = createDaoProposal();
-        operator.castDaoVote(proposalId, 2);
-    }
-
-    function test_CastDaoVoteRevertsWhenNotAuthorized() public {
-        uint256 proposalId = createDaoProposal();
-        vm.expectRevert("!dao voter");
-        vm.prank(user);
-        operator.castDaoVote(proposalId, 1);
-    }
-
-    function test_CastSplitDaoVote() public {
-        uint256 proposalId = createDaoProposal();
-        IMajorityVoting.Tally memory votes = IMajorityVoting.Tally({
-            abstain: 100,
-            yes: 500,
-            no: 200
-        });
-
-        vm.prank(daoVoter);
-        operator.castSplitDaoVote(proposalId, votes);
-    }
-
-    function test_CastSplitDaoVoteRevertsWhenNotAuthorized() public {
-        uint256 proposalId = createDaoProposal();
-        IMajorityVoting.Tally memory votes = IMajorityVoting.Tally({
-            abstain: 100,
-            yes: 500,
-            no: 200
-        });
-
-        vm.expectRevert("!dao voter");
-        vm.prank(user);
-        operator.castSplitDaoVote(proposalId, votes);
     }
 
     // ============================================

@@ -42,7 +42,7 @@ contract Locker is Ownable2Step, IERC721Receiver {
 
     /**
      *  @notice Use to execute arbitrary bytecode, and fail on reverts.
-     *  @dev May only be called by governance or operator.
+     *  @dev May only be called by owner or operator.
      *  @param _to Address this call is targeting.
      *  @param _value Ether value, if needed.
      *  @param _data Bytecode to be executed.
@@ -58,7 +58,7 @@ contract Locker is Ownable2Step, IERC721Receiver {
 
     /**
      *  @notice Use to execute arbitrary bytecode, even if it reverts.
-     *  @dev May only be called by governance or operator.
+     *  @dev May only be called by owner or operator.
      *  @param _to Address this call is targeting.
      *  @param _value Ether value, if needed.
      *  @param _data Bytecode to be executed.

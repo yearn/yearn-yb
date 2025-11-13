@@ -5,7 +5,7 @@ import { console } from "forge-std/console.sol";
 import { Setup } from "test/utils/Setup.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-contract NftTransferTest is Setup {
+contract OperatorNftTransferTest is Setup {
     address public user = address(0x123);
     address public recipient = address(0x456);
 
@@ -125,5 +125,15 @@ contract NftTransferTest is Setup {
         );
         assertGt(yToken.balanceOf(differentRecipient), 0);
         assertEq(yToken.balanceOf(user), 0);
+    }
+
+    function test_NftTransferCallbackRevertsWhenNoIncrease() public {
+        uint256 cachedAmount = operator.cachedLockedAmount();
+        uint256 currentAmount = operator.getLockedAmount();
+        assertEq(cachedAmount, currentAmount, "Cache should be current");
+
+        vm.expectRevert("No increase");
+        vm.prank(address(locker));
+        operator.nftTransferCallback(address(0), 0, recipient);
     }
 }

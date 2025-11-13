@@ -123,6 +123,25 @@ interface IYBTokenVoting {
 
     function execute(uint256 _proposalId) external;
 
+    function grant(
+        address _where,
+        address _who,
+        bytes32 _permissionId
+    ) external;
+
+    function revoke(
+        address _where,
+        address _who,
+        bytes32 _permissionId
+    ) external;
+
+    function isGranted(
+        address _where,
+        address _who,
+        bytes32 _permissionId,
+        bytes memory _data
+    ) external view returns (bool);
+
     function getCurrentTargetConfig()
         external
         view

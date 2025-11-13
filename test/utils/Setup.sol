@@ -101,6 +101,31 @@ contract Setup is Test {
         skip(1);
     }
 
+    function hasProposalPermissions() public view returns (bool) {
+        address dao = daoVoting.dao();
+        bytes32 permissionId = daoVoting.CREATE_PROPOSAL_PERMISSION_ID();
+        return IYBTokenVoting(dao).isGranted(
+            address(daoVoting),
+            address(locker),
+            permissionId,
+            ""
+        );
+    }
+
+    function grantCreateProposalPermission() public {
+        if (hasProposalPermissions()) return;
+
+        address dao = daoVoting.dao();
+        bytes32 permissionId = daoVoting.CREATE_PROPOSAL_PERMISSION_ID();
+
+        vm.prank(dao);
+        IYBTokenVoting(dao).grant(
+            address(daoVoting),
+            address(locker),
+            permissionId
+        );
+    }
+
     function getPastVotingPower(uint256 _ts) public view returns (uint256) {
         return escrow.getPastVotes(address(locker), _ts);
     }
