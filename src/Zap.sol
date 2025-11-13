@@ -1,0 +1,371 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ICurvePool } from "src/interfaces/curve/ICurvePool.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IYToken } from "src/interfaces/IYToken.sol";
+import { IYBS } from "src/interfaces/ybs/IYBS.sol";
+import { IV2Vault } from "src/interfaces/yearn/IV2Vault.sol";
+
+/**
+ * @title Zap
+ * @notice Enables seamless conversion between YB, yYB, st-yYB, lp-yYB, and ybs-yYB tokens
+ * @dev Simplified zap for yYB ecosystem with Yearn Boosted Staker support
+ */
+contract Zap {
+    using SafeERC20 for IERC20;
+
+    string public constant name = "Zap: yYB";
+
+    address public immutable YB;
+    address public immutable YYB;
+    address public immutable YV_YYB;
+    address public immutable LP_YYB;
+    address public immutable YBS;
+    address public immutable POOL;
+
+    address public sweepRecipient;
+    uint256 public mintBuffer;
+
+    event UpdateSweepRecipient(address indexed sweepRecipient);
+    event UpdateMintBuffer(uint256 mintBuffer);
+
+    constructor(
+        address _yb,
+        address _yyb,
+        address _stYyb,
+        address _lpYyb,
+        address _ybs,
+        address _pool,
+        address _sweepRecipient
+    ) {
+        require(_yb != address(0), "!yb");
+        require(_yyb != address(0), "!yyb");
+        require(_stYyb != address(0), "!stYyb");
+        require(_lpYyb != address(0), "!lpYyb");
+        require(_ybs != address(0), "!ybs");
+        require(_pool != address(0), "!pool");
+        require(_sweepRecipient != address(0), "!recipient");
+
+        YB = _yb;
+        YYB = _yyb;
+        YV_YYB = _stYyb;
+        LP_YYB = _lpYyb;
+        YBS = _ybs;
+        POOL = _pool;
+        sweepRecipient = _sweepRecipient;
+        mintBuffer = 15;
+
+        IERC20(_yb).forceApprove(_yyb, type(uint256).max);
+        IERC20(_yb).forceApprove(_pool, type(uint256).max);
+        IERC20(_yyb).forceApprove(_stYyb, type(uint256).max);
+        IERC20(_yyb).forceApprove(_pool, type(uint256).max);
+        IERC20(_yyb).forceApprove(_ybs, type(uint256).max);
+        IERC20(_pool).forceApprove(_lpYyb, type(uint256).max);
+    }
+
+    /**
+     * @notice Zap from one yYB ecosystem token to another
+     * @param inputToken Token to convert from (YB, yYB, st-yYB, lp-yYB, or ybs-yYB)
+     * @param outputToken Token to convert to (yYB, st-yYB, lp-yYB, or ybs-yYB)
+     * @param amountIn Amount of input token (max uint256 for full balance)
+     * @param minOut Minimum output amount (slippage protection)
+     * @param recipient Address to receive output tokens
+     * @return Amount of output tokens received
+     * @dev When using YBS as input, caller must have previously called `YBS.setApprovedCaller()` 
+     *  to allow this contract to manage their position.
+     */
+    function zap(
+        address inputToken,
+        address outputToken,
+        uint256 amountIn,
+        uint256 minOut,
+        address recipient
+    ) external returns (uint256) {
+        require(amountIn > 0, "!amount");
+        require(inputToken != outputToken, "same token");
+        require(_isValidOutput(outputToken), "!output");
+
+        uint256 amount = amountIn;
+        if (amount == type(uint256).max) {
+            amount = IERC20(inputToken).balanceOf(msg.sender);
+        }
+
+        uint256 yybAmount;
+
+        if (inputToken == YB) {
+            IERC20(inputToken).safeTransferFrom(msg.sender, address(this), amount);
+            yybAmount = _convertYb(amount);
+        } else {
+            require(_isValidInput(inputToken), "!input");
+
+            if (inputToken != YBS) {
+                IERC20(inputToken).safeTransferFrom(msg.sender, address(this), amount);
+            }
+
+            if (inputToken == YV_YYB) {
+                yybAmount = IERC4626(YV_YYB).redeem(amount, address(this), address(this));
+            } else if (inputToken == LP_YYB) {
+                uint256 lpAmount = IV2Vault(LP_YYB).withdraw(amount, address(this));
+                yybAmount = ICurvePool(POOL).remove_liquidity_one_coin(lpAmount, int128(1), 0, address(this));
+            } else if (inputToken == YBS) {
+                yybAmount = IYBS(YBS).unstakeFor(msg.sender, amount, address(this));
+            } else {
+                yybAmount = amount;
+            }
+        }
+
+        if (outputToken == YYB) {
+            require(yybAmount >= minOut, "slippage");
+            IERC20(YYB).safeTransfer(recipient, yybAmount);
+            return yybAmount;
+        }
+
+        return _convertToOutput(outputToken, yybAmount, minOut, recipient);
+    }
+
+    /**
+     * @notice Convert YB to yYB via pool swap or direct mint
+     * @dev Chooses most efficient path based on pool liquidity
+     * @param amount Amount of YB to convert
+     * @return Amount of yYB received
+     */
+    function _convertYb(uint256 amount) internal returns (uint256) {
+        uint256 outputAmount = ICurvePool(POOL).get_dy(0, 1, amount);
+        uint256 bufferedAmount = amount + (amount * mintBuffer / 10_000);
+
+        if (outputAmount > bufferedAmount) {
+            return ICurvePool(POOL).exchange(0, 1, amount, 0);
+        } else {
+            IYToken(YYB).lock(amount, address(this));
+            return amount;
+        }
+    }
+
+    /**
+     * @notice Add yYB liquidity to pool
+     * @param _amounts array of amounts to deposit
+     * @return LP tokens received
+     */
+    function _addLiquidity(uint256[] memory _amounts) internal returns (uint256) {
+        return ICurvePool(POOL).add_liquidity(_amounts, 0, address(this));
+    }
+
+    /**
+     * @notice Get free funds in a V2 vault (totalAssets - lockedProfit)
+     * @dev Implements Yearn V2 locked profit degradation formula
+     * @param vault V2 vault address
+     * @return Amount of free funds
+     */
+    function _getFreeFunds(address vault) internal view returns (uint256) {
+        uint256 totalAssets = IV2Vault(vault).totalAssets();
+        uint256 lockedFundsRatio = (block.timestamp - IV2Vault(vault).lastReport())
+            * IV2Vault(vault).lockedProfitDegradation();
+
+        if (lockedFundsRatio < 1e18) {
+            uint256 lockedProfit = IV2Vault(vault).lockedProfit();
+            lockedProfit -= (lockedFundsRatio * lockedProfit) / 1e18;
+            return totalAssets - lockedProfit;
+        } else {
+            return totalAssets;
+        }
+    }
+
+    /**
+     * @notice Convert shares to assets for a V2 vault accounting for locked profit
+     * @param vault V2 vault address
+     * @param shares Amount of shares to convert
+     * @return Amount of assets
+     */
+    function _sharesToAmount(address vault, uint256 shares) internal view returns (uint256) {
+        uint256 totalSupply = IV2Vault(vault).totalSupply();
+        if (totalSupply == 0) {
+            return shares;
+        }
+        return shares * _getFreeFunds(vault) / totalSupply;
+    }
+
+    /**
+     * @notice Convert assets to shares for a V2 vault accounting for locked profit
+     * @param vault V2 vault address
+     * @param amount Amount of assets to convert
+     * @return Amount of shares
+     */
+    function _amountToShares(address vault, uint256 amount) internal view returns (uint256) {
+        uint256 freeFunds = _getFreeFunds(vault);
+        if (freeFunds == 0) {
+            return amount;
+        }
+        return amount * IV2Vault(vault).totalSupply() / freeFunds;
+    }
+
+    /**
+     * @notice Convert yYB to output token (st-yYB, lp-yYB, or ybs-yYB)
+     * @param outputToken Target output token
+     * @param amount Amount of yYB to convert
+     * @param minOut Minimum output amount
+     * @param recipient Address to receive tokens
+     * @return Amount of output tokens received
+     */
+    function _convertToOutput(
+        address outputToken,
+        uint256 amount,
+        uint256 minOut,
+        address recipient
+    ) internal returns (uint256) {
+        uint256 amountOut;
+
+        if (outputToken == YV_YYB) {
+            amountOut = IERC4626(YV_YYB).deposit(amount, recipient);
+        } else if (outputToken == YBS) {
+            amountOut = IYBS(YBS).stakeFor(recipient, amount);
+            require(amountOut + 1 >= minOut, "slippage");
+            return amountOut;
+        } else {
+            require(outputToken == LP_YYB, "!output");
+            uint256[] memory amounts = new uint256[](2);
+            amounts[0] = 0;
+            amounts[1] = amount;
+            uint256 lpTokens = _addLiquidity(amounts);
+            amountOut = IV2Vault(LP_YYB).deposit(lpTokens, recipient);
+        }
+
+        require(amountOut >= minOut, "slippage");
+        return amountOut;
+    }
+
+    /**
+     * @notice Calculate expected output for a zap operation
+     * @dev This function is for off-chain use only. It is subject to manipulation if used on chain.
+     * @param inputToken Token to convert from
+     * @param outputToken Token to convert to
+     * @param amountIn Amount of input token
+     * @return Expected output amount (accounting for slippage, not fees)
+     */
+    function calcExpectedOut(
+        address inputToken,
+        address outputToken,
+        uint256 amountIn
+    ) external view returns (uint256) {
+        require(_isValidOutput(outputToken), "!output");
+        require(inputToken != outputToken, "same token");
+
+        if (amountIn == 0) {
+            return 0;
+        }
+
+        uint256 amount = amountIn;
+
+        if (inputToken == YB) {
+            uint256 outputAmount = ICurvePool(POOL).get_dy(0, 1, amount);
+            uint256 bufferedAmount = amount + (amount * mintBuffer / 10_000);
+            amount = outputAmount > bufferedAmount ? outputAmount : amount;
+        } else {
+            require(_isValidInput(inputToken), "!input");
+
+            if (inputToken == YV_YYB) {
+                amount = IERC4626(YV_YYB).convertToAssets(amount);
+            } else if (inputToken == LP_YYB) {
+                uint256 lpAmount = _sharesToAmount(LP_YYB, amount);
+                amount = ICurvePool(POOL).calc_withdraw_one_coin(lpAmount, int128(1));
+            }
+        }
+
+        if (outputToken == YYB || outputToken == YBS) {
+            return amount;
+        } else if (outputToken == YV_YYB) {
+            return IERC4626(YV_YYB).convertToShares(amount);
+        } else {
+            uint256[] memory amounts = new uint256[](2);
+            amounts[0] = 0;
+            amounts[1] = amount;
+            uint256 lpAmount = ICurvePool(POOL).calc_token_amount(amounts, true);
+            return _amountToShares(LP_YYB, lpAmount);
+        }
+    }
+
+    /**
+     * @notice Calculate relative price between tokens (no slippage)
+     * @dev Used to compare against calcExpectedOut to assess price impact
+     * @param inputToken Token to convert from
+     * @param outputToken Token to convert to
+     * @param amountIn Amount of input token
+     * @return Relative price in output token terms
+     */
+    function relativePrice(
+        address inputToken,
+        address outputToken,
+        uint256 amountIn
+    ) external view returns (uint256) {
+        require(_isValidOutput(outputToken), "!output");
+        require(_isValidInput(inputToken) || inputToken == YB, "!input");
+
+        if (amountIn == 0 || inputToken == outputToken) {
+            return amountIn;
+        }
+
+        uint256 amount = amountIn;
+
+        if (inputToken == YV_YYB) {
+            amount = IERC4626(YV_YYB).convertToAssets(amount);
+        } else if (inputToken == LP_YYB) {
+            uint256 lpAmount = _sharesToAmount(LP_YYB, amount);
+            amount = ICurvePool(POOL).get_virtual_price() * lpAmount / 1e18;
+        }
+
+        if (outputToken == YYB || outputToken == YBS) {
+            return amount;
+        } else if (outputToken == YV_YYB) {
+            return IERC4626(YV_YYB).convertToShares(amount);
+        } else {
+            uint256 lpAmount = amount * 1e18 / ICurvePool(POOL).get_virtual_price();
+            return _amountToShares(LP_YYB, lpAmount);
+        }
+    }
+
+    /**
+     * @notice Update sweep recipient address
+     * @param newRecipient New sweep recipient
+     */
+    function setSweepRecipient(address newRecipient) external {
+        require(msg.sender == sweepRecipient, "!auth");
+        require(newRecipient != address(0), "!recipient");
+        sweepRecipient = newRecipient;
+        emit UpdateSweepRecipient(newRecipient);
+    }
+
+    /**
+     * @notice Update mint buffer for YB->yYB conversion logic
+     * @param newBuffer New buffer in basis points (max 500 = 5%)
+     */
+    function setMintBuffer(uint256 newBuffer) external {
+        require(msg.sender == sweepRecipient, "!auth");
+        require(newBuffer < 500, "buffer too high");
+        mintBuffer = newBuffer;
+        emit UpdateMintBuffer(newBuffer);
+    }
+
+    /**
+     * @notice Sweep tokens from contract
+     * @param token Token to sweep
+     * @param amount Amount to sweep (max uint256 for full balance)
+     */
+    function sweep(address token, uint256 amount) external {
+        require(msg.sender == sweepRecipient, "!auth");
+        uint256 value = amount;
+        if (value == type(uint256).max) {
+            value = IERC20(token).balanceOf(address(this));
+        }
+        IERC20(token).safeTransfer(sweepRecipient, value);
+    }
+
+    function _isValidInput(address token) internal view returns (bool) {
+        return token == YYB || token == YV_YYB || token == LP_YYB || token == YBS;
+    }
+
+    function _isValidOutput(address token) internal view returns (bool) {
+        return token == YYB || token == YV_YYB || token == LP_YYB || token == YBS;
+    }
+}

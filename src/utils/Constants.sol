@@ -6,10 +6,12 @@ library Protocol {
     address constant LOCKER = 0x0000000C90799449af8eE0B240Da639144a36C6A;
     address constant OPERATOR = 0x1111111Ecd5Ae05422aeCe517072ec33Dbf34af9;
     address constant YTOKEN = 0x22222222aEA0076fCA927a3f44dc0B4FdF9479D6;
+    address constant YV_YYB = 0xA785dbbb48f6C42bE29DeA00Eb1347b341D681a5;
+    address constant YV_LPYYB = 0xe0287cA62fE23f4FFAB827d5448d68aFe6DD9Fd7;
 }
 
 library YBS {
-    address constant YBS_YB = 0xd1939a4B7b49edBdC668fA32Ba717Cf93E525051;
+    address constant YBS_YB = 0x5D2eA33449A60a70E8FCdc5251FDd86a030fAD91;
     address constant UTILS_YB = 0xcC94635a39678265079287058105657326a38624;
     address constant DISTRIBUTOR_YB = 0x9C5733145417B0C8cd0A799Db054664F81a7b336;
 
@@ -26,6 +28,18 @@ library YB {
     address constant STAKE_ZAP = 0xE862bC39B8D5F12D8c4117d3e2D493Dc20051EC6;
     address constant DAO_VOTING = 0x2be6670DE1cCEC715bDBBa2e3A6C1A05E496ec78;
     address constant DAO = 0x42F2A41A0D0e65A440813190880c8a65124895Fa;
+}
+
+library Curve {
+    address internal constant CURVE_STABLE_FACTORY = 0x6A8cbed756804B16E05E741eDaBd5cB544AE21bf;
+    address internal constant POOL = 0x64c08F63De0D4AF43aE09d3E26737ED2A492F02B;
+    address internal constant GAUGE = 0xE064B521c282C988cCE7BB74C6836b63AfA602Ea;
+}
+
+library Yearn {
+    address internal constant ROLE_MANAGER = 0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41;
+    address internal constant VAULT = 0xA785dbbb48f6C42bE29DeA00Eb1347b341D681a5;
+    address internal constant REGISTRY_V2 = 0x7Cb5ABEb0de8f6f46a27329B9eF54CE10E47F1e2;
 }
 
 library CreateX {

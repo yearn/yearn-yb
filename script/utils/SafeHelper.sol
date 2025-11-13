@@ -5,7 +5,7 @@ pragma solidity >=0.6.2 <0.9.0;
 // Gnosis Safe transaction batching script
 
 // 🧩 MODULES
-import {Script, console2, StdChains, stdJson, stdMath, StdStorage, stdStorageSafe, VmSafe} from "forge-std/Script.sol";
+import {Script, console2, stdJson} from "forge-std/Script.sol";
 import {Test} from "forge-std/Test.sol";
 import {Surl} from "lib/surl/src/Surl.sol";
 

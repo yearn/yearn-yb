@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Setup} from "test/utils/Setup.sol";
-import {Operator} from "src/Operator.sol";
-import {IMajorityVoting} from "src/interfaces/yb/IYBTokenVoting.sol";
-import {Action} from "src/interfaces/yb/IYBTokenVoting.sol";
+import { Setup } from "test/utils/Setup.sol";
+import { IMajorityVoting } from "src/interfaces/yb/IYBTokenVoting.sol";
+import { Action } from "src/interfaces/yb/IYBTokenVoting.sol";
 
 contract OperatorDaoVotingTest is Setup {
     address public daoVoter = address(0x3);
