@@ -40,11 +40,10 @@ contract ZapTest is Test {
             address(pool),
             sweepRecipient
         );
-
-        _fundAndApprove();
+        
         _seedLiquidity();
+        _fundAndApprove();
         _setYbsApprovedCaller(address(this), address(zap));
-        _prefundAllTokens();
     }
 
     function maxApprove(IERC20 token, address spender) internal {
@@ -52,21 +51,40 @@ contract ZapTest is Test {
     }
 
     function _fundAndApprove() internal {
-        deal(address(yb), address(this), INITIAL_BALANCE);
-        deal(address(yyb), address(this), INITIAL_BALANCE);
-
+        // Approve
+        maxApprove(yb, address(pool));
+        maxApprove(yyb, address(pool));
         maxApprove(yb, address(zap));
         maxApprove(yyb, address(zap));
+        maxApprove(yvYyb, address(zap));
+        maxApprove(lpYyb, address(zap));
+        maxApprove(pool, address(zap));
         maxApprove(yyb, address(yvYyb));
         maxApprove(yyb, address(ybs));
         maxApprove(yyb, address(pool));
         maxApprove(pool, address(lpYyb));
-        maxApprove(yvYyb, address(zap));
-        maxApprove(lpYyb, address(zap));
+
+        // Fund
+        deal(address(yb), address(this), INITIAL_BALANCE);
+        deal(address(yyb), address(this), INITIAL_BALANCE);
+        uint256 amount = 50_000e18;
+        IERC4626(address(yvYyb)).deposit(amount, address(this));
+        maxApprove(yyb, address(pool));
+        maxApprove(pool, address(lpYyb));
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = amount;
+        amounts[1] = amount;
+        uint256 lpTokens = ICurvePool(address(pool)).add_liquidity(amounts, 0, address(this));
+        IERC4626(address(lpYyb)).deposit(lpTokens, address(this));
+        IYBS(address(ybs)).stakeFor(address(this), 25_000e18);
+        deal(address(yb), address(this), INITIAL_BALANCE);
+        deal(address(yyb), address(this), INITIAL_BALANCE);
     }
 
     function _seedLiquidity() internal {
         uint256 amount = 100_000e18;
+        deal(address(yb), address(this), amount);
+        deal(address(yyb), address(this), amount);
         maxApprove(yb, address(pool));
         maxApprove(yyb, address(pool));
         uint256[] memory amounts = new uint256[](2);
@@ -75,26 +93,10 @@ contract ZapTest is Test {
         ICurvePool(address(pool)).add_liquidity(amounts, 0, address(this));
     }
 
-    function _prefundAllTokens() internal {
-        IERC4626(address(yvYyb)).deposit(50_000e18, address(this));
-
-        maxApprove(yyb, address(pool));
-        maxApprove(pool, address(lpYyb));
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = 0;
-        amounts[1] = 25_000e18;
-        uint256 lpTokens = ICurvePool(address(pool)).add_liquidity(amounts, 0, address(this));
-        IERC4626(address(lpYyb)).deposit(lpTokens, address(this));
-
-        IYBS(address(ybs)).stakeFor(address(this), 25_000e18);
-    }
-
     function test_ZapYbToYyb() public {
         uint256 amount = 1000e18;
         uint256 balanceBefore = yyb.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yb), address(yyb), amount, 0, address(this));
-
         assertGt(received, 0);
         assertEq(yyb.balanceOf(address(this)), balanceBefore + received);
     }
@@ -102,9 +104,7 @@ contract ZapTest is Test {
     function test_ZapYbToYvYyb() public {
         uint256 amount = 1000e18;
         uint256 balanceBefore = yvYyb.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yb), address(yvYyb), amount, 0, address(this));
-
         assertGt(received, 0);
         assertEq(yvYyb.balanceOf(address(this)), balanceBefore + received);
     }
@@ -112,9 +112,7 @@ contract ZapTest is Test {
     function test_ZapYbToLpYyb() public {
         uint256 amount = 1000e18;
         uint256 balanceBefore = lpYyb.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yb), address(lpYyb), amount, 0, address(this));
-
         assertGt(received, 0);
         assertEq(lpYyb.balanceOf(address(this)), balanceBefore + received);
     }
@@ -122,9 +120,7 @@ contract ZapTest is Test {
     function test_ZapYbToYbs() public {
         uint256 amount = 1000e18;
         uint256 balanceBefore = ybs.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yb), address(ybs), amount, 0, address(this));
-
         assertGt(received, 0);
         assertEq(ybs.balanceOf(address(this)), balanceBefore + received);
     }
@@ -132,9 +128,7 @@ contract ZapTest is Test {
     function test_ZapYybToyvYyb() public {
         uint256 amount = 1000e18;
         uint256 balanceBefore = yvYyb.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yyb), address(yvYyb), amount, 0, address(this));
-
         assertGt(received, 0);
         assertEq(yvYyb.balanceOf(address(this)), balanceBefore + received);
     }
@@ -142,9 +136,7 @@ contract ZapTest is Test {
     function test_ZapYybToLpYyb() public {
         uint256 amount = 1000e18;
         uint256 balanceBefore = lpYyb.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yyb), address(lpYyb), amount, 0, address(this));
-
         assertGt(received, 0);
         assertEq(lpYyb.balanceOf(address(this)), balanceBefore + received);
     }
@@ -152,31 +144,23 @@ contract ZapTest is Test {
     function test_ZapYybToYbs() public {
         uint256 amount = 1000e18;
         uint256 balanceBefore = ybs.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yyb), address(ybs), amount, 0, address(this));
-
         assertEq(received, amount);
         assertEq(ybs.balanceOf(address(this)), balanceBefore + amount);
     }
 
     function test_ZapYvYybToYyb() public {
         uint256 shares = IERC4626(address(yvYyb)).deposit(1000e18, address(this));
-
         uint256 balanceBefore = yyb.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yvYyb), address(yyb), shares, 0, address(this));
-
         assertGt(received, 0);
         assertEq(yyb.balanceOf(address(this)), balanceBefore + received);
     }
 
     function test_ZapyvYybToLpYyb() public {
         uint256 shares = IERC4626(address(yvYyb)).deposit(1000e18, address(this));
-
         uint256 balanceBefore = lpYyb.balanceOf(address(this));
-
         uint256 received = zap.zap(address(yvYyb), address(lpYyb), shares, 0, address(this));
-
         assertGt(received, 0);
         assertEq(lpYyb.balanceOf(address(this)), balanceBefore + received);
     }
@@ -189,11 +173,8 @@ contract ZapTest is Test {
         uint256 lpTokens = ICurvePool(address(pool)).add_liquidity(amounts, 0, address(this));
         maxApprove(pool, address(lpYyb));
         uint256 shares = IERC4626(address(lpYyb)).deposit(lpTokens, address(this));
-
         uint256 balanceBefore = yyb.balanceOf(address(this));
-
         uint256 received = zap.zap(address(lpYyb), address(yyb), shares, 0, address(this));
-
         assertGt(received, 0);
         assertEq(yyb.balanceOf(address(this)), balanceBefore + received);
     }

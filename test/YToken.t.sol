@@ -49,7 +49,7 @@ contract YTokenTest is Setup {
         // capture current ve supply before lock (the ve contract exposes it as `supply()` or equivalent)
         uint256 supplyBefore = escrow.supply();
 
-        YToken(address(yToken)).lock(lockAmount, recipient);
+        YToken(address(yToken)).mint(lockAmount, recipient);
         vm.stopPrank();
 
         // compute the effective rounded value used by the ve contract
@@ -68,7 +68,7 @@ contract YTokenTest is Setup {
 
         // when/then: Lock reverts with zero amount
         vm.expectRevert("Amount must be > 0");
-        YToken(address(yToken)).lock(0, recipient);
+        YToken(address(yToken)).mint(0, recipient);
         vm.stopPrank();
     }
 
@@ -81,7 +81,7 @@ contract YTokenTest is Setup {
         token.approve(address(yToken), lockAmount);
 
         // when: User locks to a different address
-        YToken(address(yToken)).lock(lockAmount, recipient);
+        YToken(address(yToken)).mint(lockAmount, recipient);
         vm.stopPrank();
 
         // then: Recipient receives yTokens, not the user
@@ -100,20 +100,10 @@ contract YTokenTest is Setup {
 
         // when: Operator calls mint
         vm.prank(address(operator));
-        YToken(address(yToken)).mint(recipient, mintAmount);
+        YToken(address(yToken)).mint(mintAmount, recipient);
 
         // then: Tokens are minted to recipient
         assertEq(yToken.balanceOf(recipient), recipientBalanceBefore + mintAmount);
-    }
-
-    function test_MintRevertsWhenNotOperator() public {
-        // given: Non-operator tries to mint
-        uint256 mintAmount = 100_000e18;
-
-        // when/then: Mint reverts when called by non-operator
-        vm.expectRevert("Only locker");
-        vm.prank(user);
-        YToken(address(yToken)).mint(recipient, mintAmount);
     }
 
     // ============================================

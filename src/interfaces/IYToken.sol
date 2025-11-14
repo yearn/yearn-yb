@@ -10,9 +10,7 @@ interface IYToken is IERC20 {
 
     function token() external view returns (address);
 
-    function lock(uint256 amount, address to) external;
-
-    function mint(address to, uint256 amount) external;
+    function mint(uint256 amount, address to) external;
 
     function sweep(address _token, address to, uint256 amount) external;
 

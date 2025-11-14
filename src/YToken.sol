@@ -32,14 +32,12 @@ contract YToken is ERC20 {
         token = _token;
     }
 
-    function lock(uint256 amount, address to) external {
+    function mint(uint256 amount, address to) external {
         require(amount > 0, "Amount must be > 0");
-        IERC20(token).safeTransferFrom(msg.sender, locker, amount);
-        IOperator(operator()).lock(amount);
-        _mint(to, amount);
-    }
-
-    function mint(address to, uint256 amount) external onlyOperator {
+        if (msg.sender != operator()) {
+            IERC20(token).safeTransferFrom(msg.sender, locker, amount);
+            IOperator(operator()).lock(amount);
+        }
         _mint(to, amount);
     }
 

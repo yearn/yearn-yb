@@ -9,7 +9,7 @@ import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 import { ILocker } from "src/interfaces/ILocker.sol";
 
 interface IToken {
-    function mint(address to, uint256 amount) external;
+    function mint(uint256 amount, address to) external;
 }
 
 contract Operator {
@@ -159,7 +159,7 @@ contract Operator {
         uint256 newAmount = _updateCachedLockedAmount();
         amount = newAmount > amount ? newAmount - amount : 0; // amount gained
         require(amount > 0, "No increase");
-        IToken(yToken).mint(recipient, amount);
+        IToken(yToken).mint(amount, recipient);
     }
 
     // Write cached locked amount to storage

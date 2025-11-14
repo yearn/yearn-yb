@@ -60,8 +60,8 @@ contract Zap {
 
         IERC20(_yb).forceApprove(_yyb, type(uint256).max);
         IERC20(_yb).forceApprove(_pool, type(uint256).max);
-        IERC20(_yyb).forceApprove(_stYyb, type(uint256).max);
         IERC20(_yyb).forceApprove(_pool, type(uint256).max);
+        IERC20(_yyb).forceApprove(_stYyb, type(uint256).max);
         IERC20(_yyb).forceApprove(_ybs, type(uint256).max);
         IERC20(_pool).forceApprove(_lpYyb, type(uint256).max);
     }
@@ -139,7 +139,7 @@ contract Zap {
         if (outputAmount > bufferedAmount) {
             return ICurvePool(POOL).exchange(0, 1, amount, 0);
         } else {
-            IYToken(YYB).lock(amount, address(this));
+            IYToken(YYB).mint(amount, address(this));
             return amount;
         }
     }
@@ -264,7 +264,6 @@ contract Zap {
             amount = outputAmount > bufferedAmount ? outputAmount : amount;
         } else {
             require(_isValidInput(inputToken), "!input");
-
             if (inputToken == YV_YYB) {
                 amount = IERC4626(YV_YYB).convertToAssets(amount);
             } else if (inputToken == LP_YYB) {
