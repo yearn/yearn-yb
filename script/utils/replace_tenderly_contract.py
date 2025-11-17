@@ -48,6 +48,19 @@ CONTRACTS = {
             "0x2be6670DE1cCEC715bDBBa2e3A6C1A05E496ec78",  # daoVoting
             "0x22222222aEA0076fCA927a3f44dc0B4FdF9479D6",  # yToken
         ]
+    },
+    "Zap": {
+        "target_address": "0x1863e6086f3E6d5A57ed696C101349Be30A4598E",
+        "artifact_path": "out/Zap.sol/Zap.json",
+        "constructor_args": [
+            "0x01791F726B4103694969820be083196cC7c045fF",  # YB.TOKEN
+            "0x22222222aEA0076fCA927a3f44dc0B4FdF9479D6",  # Protocol.YTOKEN (yYB)
+            "0xA785dbbb48f6C42bE29DeA00Eb1347b341D681a5",  # Protocol.YV_YYB (st-yYB)
+            "0xe0287cA62fE23f4FFAB827d5448d68aFe6DD9Fd7",  # Protocol.YV_LPYYB (lp-yYB)
+            "0x5D2eA33449A60a70E8FCdc5251FDd86a030fAD91",  # YBS.YBS_YB (ybs-yYB)
+            "0x64c08F63De0D4AF43aE09d3E26737ED2A492F02B",  # Curve.POOL
+            "0x4444AAAACDBa5580282365e25b16309Bd770ce4a",  # Protocol.OWNER (sweepRecipient)
+        ]
     }
 }
 
@@ -98,7 +111,7 @@ def deploy_temp_contract(w3, contract_name, artifact, constructor_args):
     constructor_txn = contract.constructor(*constructor_args).build_transaction({
         'from': temp_account.address,
         'nonce': w3.eth.get_transaction_count(temp_account.address),
-        'gas': 3000000,
+        'gas': 10000000,
         'gasPrice': w3.eth.gas_price,
     })
 
@@ -112,6 +125,11 @@ def deploy_temp_contract(w3, contract_name, artifact, constructor_args):
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 
     if receipt['status'] != 1:
+        # Try to get revert reason
+        try:
+            w3.eth.call(constructor_txn, receipt['blockNumber'])
+        except Exception as e:
+            print(f"Revert reason: {e}")
         raise Exception("Deployment failed")
 
     deployed_address = receipt['contractAddress']

@@ -16,15 +16,21 @@ from pathlib import Path
 
 
 def get_contract_files(src_dir: Path) -> list[Path]:
-    """Find all .sol files in src/ excluding interfaces and utils."""
+    """Find all .sol files in src/ excluding interfaces and most utils."""
     all_files = src_dir.rglob("*.sol")
 
-    # Filter out interfaces and utils directories
+    # Whitelist of utils contracts to include
+    utils_whitelist = {"NFTHelper.sol"}
+
+    # Filter out interfaces and utils directories (except whitelisted utils)
     contracts = []
     for file in all_files:
         rel_path = file.relative_to(src_dir)
-        if rel_path.parts[0] not in ("interfaces", "utils"):
-            contracts.append(file)
+        if rel_path.parts[0] == "interfaces":
+            continue
+        if rel_path.parts[0] == "utils" and file.name not in utils_whitelist:
+            continue
+        contracts.append(file)
 
     return contracts
 

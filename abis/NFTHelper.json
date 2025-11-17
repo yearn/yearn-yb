@@ -1,0 +1,102 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_gaugeController",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_veYB",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "gaugeController",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IYBGaugeController"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getNftTransferInfo",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lockedAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "isVotePowerCleared",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "isPermanentLock",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "votedGauges",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTokenId",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "veYB",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IYBVotingEscrow"
+      }
+    ],
+    "stateMutability": "view"
+  }
+]

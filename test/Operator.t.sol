@@ -200,9 +200,13 @@ contract OperatorTest is Setup {
         uint256 n_gauges = 2;//gaugeController.n_gauges();
         gauges = new address[](n_gauges);
         weights = new uint256[](n_gauges);
-        for (uint256 i = 0; i < n_gauges; i++) {
-            gauges[i] = gaugeController.gauges(i);
-            weights[i] = 5000;
+        uint256 k;
+        for (uint256 i = 0; i < n_gauges || k < 2; i++) {
+            address g = gaugeController.gauges(i);
+            if (gaugeController.is_killed(g)) continue;
+            gauges[k] = g;
+            weights[k] = 5000;
+            k++;
         }
         return (gauges, weights);
     }
