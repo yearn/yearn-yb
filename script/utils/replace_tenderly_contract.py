@@ -61,6 +61,14 @@ CONTRACTS = {
             "0x64c08F63De0D4AF43aE09d3E26737ED2A492F02B",  # Curve.POOL
             "0x4444AAAACDBa5580282365e25b16309Bd770ce4a",  # Protocol.OWNER (sweepRecipient)
         ]
+    },
+    "NFTHelper": {
+        "target_address": "0x99999990aAA1B07506Cb4eA501B46Ba03D526E95",
+        "artifact_path": "out/NFTHelper.sol/NFTHelper.json",
+        "constructor_args": [
+            "0x1Be14811A3a06F6aF4fA64310a636e1Df04c1c21",  # YB.GAUGE_CONTROLLER
+            "0x8235c179E9e84688FBd8B12295EfC26834dAC211",  # YB.VEYB
+        ]
     }
 }
 

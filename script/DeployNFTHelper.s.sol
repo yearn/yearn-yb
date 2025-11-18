@@ -25,7 +25,7 @@ contract DeployNFTHelper is Script, SafeHelper, CreateXHelper, TenderlyHelper {
     }
 
     function isNFTHelperDeployed() public view returns (bool) {
-        return addressHasCode(Protocol.NFTHelper);
+        return addressHasCode(Protocol.NFT_HELPER);
     }
 
     function deployNFTHelper() public returns (address) {

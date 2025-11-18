@@ -8,7 +8,7 @@ library Protocol {
     address constant YTOKEN = 0x22222222aEA0076fCA927a3f44dc0B4FdF9479D6;
     address constant YV_YYB = 0xA785dbbb48f6C42bE29DeA00Eb1347b341D681a5;
     address constant YV_LPYYB = 0xe0287cA62fE23f4FFAB827d5448d68aFe6DD9Fd7;
-    address constant NFTHelper = 0x99999990aAA1B07506Cb4eA501B46Ba03D526E95;
+    address constant NFT_HELPER = 0x99999990aAA1B07506Cb4eA501B46Ba03D526E95;
 }
 
 library YBS {

@@ -11,12 +11,14 @@ import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 contract NFTHelper {
     IYBGaugeController public immutable gaugeController;
     IYBVotingEscrow public immutable veYB;
+    uint256 public immutable WEIGHT_VOTE_DELAY;
 
     constructor(address _gaugeController, address _veYB) {
         require(_gaugeController != address(0), "!gaugeController");
         require(_veYB != address(0), "!veYB");
         gaugeController = IYBGaugeController(_gaugeController);
         veYB = IYBVotingEscrow(_veYB);
+        WEIGHT_VOTE_DELAY = 10 days;
     }
 
     /**
@@ -35,6 +37,7 @@ contract NFTHelper {
      * @return lockedAmount The amount of tokens locked
      * @return isVotePowerCleared Whether the user's vote power is cleared
      * @return isPermanentLock Whether the lock is permanent (infinite lock)
+     * @return voteClearTime Timestamp when all active votes can be cleared (0 if no cooldown)
      * @return votedGauges List of gauges where user has active vote weight
      */
     function getNftTransferInfo(address user)
@@ -45,6 +48,7 @@ contract NFTHelper {
             uint256 lockedAmount,
             bool isVotePowerCleared,
             bool isPermanentLock,
+            uint256 voteClearTime,
             address[] memory votedGauges
         )
     {
@@ -54,23 +58,43 @@ contract NFTHelper {
         lockedAmount = amount > 0 ? uint256(amount) : 0;
         isPermanentLock = lockEnd == type(uint256).max;
 
-        if (!isVotePowerCleared) {
-            uint256 gaugesLength = gaugeController.n_gauges();
-            address[] memory tempGauges = new address[](gaugesLength);
-            uint256 count;
+        votedGauges = _getVotedGauges(user, isVotePowerCleared);
+        voteClearTime = _calculateVoteClearTime(user, votedGauges);
+    }
 
-            for (uint256 i = 0; i < gaugesLength; i++) {
-                address gauge = gaugeController.gauges(i);
-                (, , uint256 power,) = gaugeController.vote_user_slopes(user, gauge);
+    function _getVotedGauges(address user, bool isCleared) internal view returns (address[] memory votedGauges) {
+        if (isCleared) {
+            return new address[](0);
+        }
 
-                if (power > 0) {
-                    tempGauges[count++] = gauge;
-                }
+        uint256 gaugesLength = gaugeController.n_gauges();
+        address[] memory tempGauges = new address[](gaugesLength);
+        uint256 count;
+
+        for (uint256 i = 0; i < gaugesLength; i++) {
+            address gauge = gaugeController.gauges(i);
+            (, , uint256 power,) = gaugeController.vote_user_slopes(user, gauge);
+
+            if (power > 0) {
+                tempGauges[count++] = gauge;
             }
-            votedGauges = tempGauges;
-            // Use assembly to manually trim the array to correct length
-            assembly {
-                mstore(votedGauges, count)
+        }
+
+        votedGauges = tempGauges;
+        assembly {
+            mstore(votedGauges, count)
+        }
+    }
+
+    function _calculateVoteClearTime(address user, address[] memory votedGauges) internal view returns (uint256 clearTime) {
+        if (votedGauges.length == 0) {
+            return 0;
+        }
+
+        for (uint256 i = 0; i < votedGauges.length; i++) {
+            uint256 gaugeVoteClearTime = gaugeController.last_user_vote(user, votedGauges[i]) + WEIGHT_VOTE_DELAY;
+            if (gaugeVoteClearTime > block.timestamp && gaugeVoteClearTime > clearTime) {
+                clearTime = gaugeVoteClearTime;
             }
         }
     }
