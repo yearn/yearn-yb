@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import { Setup } from "test/utils/Setup.sol";
 import { YToken } from "src/YToken.sol";
+import { Locker } from "src/Locker.sol";
+import { Operator } from "src/Operator.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 contract YTokenTest is Setup {
@@ -127,14 +129,95 @@ contract YTokenTest is Setup {
         assertEq(someToken.balanceOf(address(yToken)), 500e18);
     }
 
-    function test_SweepRevertsWhenNotOperator() public {
-        // given: Some tokens are in the contract
+    function test_SweepRevertsWhenUnauthorized() public {
         MockERC20 someToken = new MockERC20("Some", "SOME");
         someToken.mint(address(yToken), 1000e18);
 
-        // when/then: Sweep reverts when called by non-operator
-        vm.expectRevert("Only locker");
+        vm.expectRevert("!authorized");
         vm.prank(user);
         YToken(address(yToken)).sweep(address(someToken), recipient, 500e18);
+    }
+
+    function test_SweepSucceedsWhenCalledByOwner() public {
+        MockERC20 someToken = new MockERC20("Some", "SOME");
+        someToken.mint(address(yToken), 1000e18);
+
+        uint256 sweepAmount = 500e18;
+        uint256 recipientBalanceBefore = someToken.balanceOf(recipient);
+
+        vm.prank(YToken(address(yToken)).owner());
+        YToken(address(yToken)).sweep(address(someToken), recipient, sweepAmount);
+
+        assertEq(someToken.balanceOf(recipient), recipientBalanceBefore + sweepAmount);
+        assertEq(someToken.balanceOf(address(yToken)), 500e18);
+    }
+
+    // ============================================
+    // setLocker Function Tests
+    // ============================================
+
+    function test_SetLockerUpdatesOperatorAndOwnerReferences() public {
+        address newOwner = address(0x999);
+        YToken yt = YToken(address(yToken));
+
+        address predictedLockerAddress = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        deal(address(token), predictedLockerAddress, 1e18);
+
+        Locker newLocker = new Locker(newOwner, address(token), address(escrow));
+        Operator newOperator = new Operator(payable(address(newLocker)), address(gaugeController), address(daoVoting), address(yToken));
+
+        vm.prank(newOwner);
+        newLocker.setOperator(address(newOperator));
+
+        toggleInfiniteLock(address(newLocker), true);
+
+        address oldOperator = yt.operator();
+        address oldOwner = yt.owner();
+
+        vm.prank(yt.owner());
+        yt.setLocker(address(newLocker));
+
+        assertEq(address(yt.locker()), address(newLocker));
+        assertEq(yt.operator(), address(newOperator));
+        assertEq(yt.owner(), newOwner);
+        assertTrue(yt.operator() != oldOperator);
+        assertTrue(yt.owner() != oldOwner);
+    }
+
+    function test_SetLockerSucceedsWhenCalledByOwner() public {
+        address newOwner = address(0x888);
+        YToken yt = YToken(address(yToken));
+
+        address predictedLockerAddress = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        deal(address(token), predictedLockerAddress, 1e18);
+
+        Locker newLocker = new Locker(newOwner, address(token), address(escrow));
+        toggleInfiniteLock(address(newLocker), true);
+
+        vm.prank(yt.owner());
+        yt.setLocker(address(newLocker));
+
+        assertEq(address(yt.locker()), address(newLocker));
+    }
+
+    function test_SetLockerRevertsWithZeroAddress() public {
+        YToken yt = YToken(address(yToken));
+        address owner = yt.owner();
+
+        vm.expectRevert("!valid");
+        vm.prank(owner);
+        yt.setLocker(address(0));
+    }
+
+    function test_SetLockerRevertsWhenUnauthorized() public {
+        address predictedLockerAddress = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        deal(address(token), predictedLockerAddress, 1e18);
+
+        Locker newLocker = new Locker(address(0x777), address(token), address(escrow));
+        toggleInfiniteLock(address(newLocker), true);
+
+        vm.expectRevert("!authorized");
+        vm.prank(user);
+        YToken(address(yToken)).setLocker(address(newLocker));
     }
 }
