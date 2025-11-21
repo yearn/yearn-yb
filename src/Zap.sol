@@ -8,13 +8,13 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IYToken } from "src/interfaces/IYToken.sol";
 import { IYBS } from "src/interfaces/ybs/IYBS.sol";
-import { IV2Vault } from "src/interfaces/yearn/IV2Vault.sol";
 import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
+import { IV2Vault } from "src/interfaces/yearn/IV2Vault.sol";
+import { YV2Helper } from "src/utils/YearnV2Helper.sol";
 
 /**
  * @title Zap
- * @notice Enables seamless conversion between YB, yYB, st-yYB, lp-yYB, and ybs-yYB tokens
- * @dev Simplified zap for yYB ecosystem with Yearn Boosted Staker support
+ * @notice Enables multi-step token conversions into and within the yYB ecosystem in a single transaction
  */
 contract Zap {
     using SafeERC20 for IERC20;
@@ -74,8 +74,8 @@ contract Zap {
 
     /**
      * @notice Zap from one yYB ecosystem token to another
-     * @param inputToken Token to convert from (YB, yYB, st-yYB, lp-yYB, or ybs-yYB)
-     * @param outputToken Token to convert to (yYB, st-yYB, lp-yYB, or ybs-yYB)
+     * @param inputToken Token to convert from
+     * @param outputToken Token to convert to
      * @param amountIn Amount of input token (max uint256 for full balance)
      * @param minOut Minimum output amount (slippage protection)
      * @param recipient Address to receive output tokens
@@ -163,7 +163,7 @@ contract Zap {
     }
 
     /**
-     * @notice Add yYB liquidity to pool
+     * @notice Add liquidity to pool
      * @param _amounts array of amounts to deposit
      * @return LP tokens received
      */
@@ -171,60 +171,10 @@ contract Zap {
         return ICurvePool(POOL).add_liquidity(_amounts, 0, address(this));
     }
 
-    /**
-     * @notice Get free funds in a V2 vault (totalAssets - lockedProfit)
-     * @dev Implements Yearn V2 locked profit degradation formula
-     * @param vault V2 vault address
-     * @return Amount of free funds
-     */
-    function _getFreeFunds(address vault) internal view returns (uint256) {
-        uint256 totalAssets = IV2Vault(vault).totalAssets();
-        uint256 lockedFundsRatio = (block.timestamp - IV2Vault(vault).lastReport())
-            * IV2Vault(vault).lockedProfitDegradation();
-
-        if (lockedFundsRatio < 1e18) {
-            uint256 lockedProfit = IV2Vault(vault).lockedProfit();
-            lockedProfit -= (lockedFundsRatio * lockedProfit) / 1e18;
-            return totalAssets - lockedProfit;
-        } else {
-            return totalAssets;
-        }
-    }
+    
 
     /**
-     * @notice Convert shares to assets for a V2 vault accounting for locked profit
-     * @dev Yearn v2-style locked profit: emulate vault's internal lockedProfit decay instead of using a v3/4626-style convertToAssets.
-     * @dev Used only for quoting LP_YYB share <-> asset value.
-     * @param vault V2 vault address
-     * @param shares Amount of shares to convert
-     * @return Amount of assets
-     */
-    function _sharesToAmount(address vault, uint256 shares) internal view returns (uint256) {
-        uint256 totalSupply = IV2Vault(vault).totalSupply();
-        if (totalSupply == 0) {
-            return shares;
-        }
-        return shares * _getFreeFunds(vault) / totalSupply;
-    }
-
-    /**
-     * @notice Convert assets to shares for a V2 vault accounting for locked profit
-     * @dev Yearn v2-style locked profit: emulate vault's internal lockedProfit decay instead of using a v3/4626-style convertToShares.
-     * @dev Used only for quoting LP_YYB share <-> asset value.
-     * @param vault V2 vault address
-     * @param amount Amount of assets to convert
-     * @return Amount of shares
-     */
-    function _amountToShares(address vault, uint256 amount) internal view returns (uint256) {
-        uint256 freeFunds = _getFreeFunds(vault);
-        if (freeFunds == 0) {
-            return amount;
-        }
-        return amount * IV2Vault(vault).totalSupply() / freeFunds;
-    }
-
-    /**
-     * @notice Convert yYB to output token (st-yYB, lp-yYB, or ybs-yYB)
+     * @notice Convert yYB to output token
      * @param outputToken Target output token
      * @param amount Amount of yYB to convert
      * @param minOut Minimum output amount
@@ -290,7 +240,7 @@ contract Zap {
             if (inputToken == YV_YYB) {
                 amount = IERC4626(YV_YYB).convertToAssets(amount);
             } else if (inputToken == LP_YYB) {
-                uint256 lpAmount = _sharesToAmount(LP_YYB, amount);
+                uint256 lpAmount = YV2Helper._sharesToAmount(LP_YYB, amount);
                 amount = ICurvePool(POOL).calc_withdraw_one_coin(lpAmount, int128(1));
             }
         }
@@ -304,7 +254,7 @@ contract Zap {
             amounts[0] = 0;
             amounts[1] = amount;
             uint256 lpAmount = ICurvePool(POOL).calc_token_amount(amounts, true);
-            return _amountToShares(LP_YYB, lpAmount);
+            return YV2Helper._amountToShares(LP_YYB, lpAmount);
         }
     }
 
@@ -333,7 +283,7 @@ contract Zap {
         if (inputToken == YV_YYB) {
             amount = IERC4626(YV_YYB).convertToAssets(amount);
         } else if (inputToken == LP_YYB) {
-            uint256 lpAmount = _sharesToAmount(LP_YYB, amount);
+            uint256 lpAmount = YV2Helper._sharesToAmount(LP_YYB, amount);
             amount = ICurvePool(POOL).get_virtual_price() * lpAmount / 1e18;
         }
 
@@ -343,7 +293,7 @@ contract Zap {
             return IERC4626(YV_YYB).convertToShares(amount);
         } else {
             uint256 lpAmount = amount * 1e18 / ICurvePool(POOL).get_virtual_price();
-            return _amountToShares(LP_YYB, lpAmount);
+            return YV2Helper._amountToShares(LP_YYB, lpAmount);
         }
     }
 
