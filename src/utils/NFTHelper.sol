@@ -11,14 +11,13 @@ import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 contract NFTHelper {
     IYBGaugeController public immutable gaugeController;
     IYBVotingEscrow public immutable veYB;
-    uint256 public immutable WEIGHT_VOTE_DELAY;
+    uint256 public constant WEIGHT_VOTE_DELAY = 10 days;
 
     constructor(address _gaugeController, address _veYB) {
         require(_gaugeController != address(0), "!gaugeController");
         require(_veYB != address(0), "!veYB");
         gaugeController = IYBGaugeController(_gaugeController);
         veYB = IYBVotingEscrow(_veYB);
-        WEIGHT_VOTE_DELAY = 10 days;
     }
 
     /**

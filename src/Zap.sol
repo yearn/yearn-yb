@@ -5,9 +5,11 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ICurvePool } from "src/interfaces/curve/ICurvePool.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IYToken } from "src/interfaces/IYToken.sol";
 import { IYBS } from "src/interfaces/ybs/IYBS.sol";
 import { IV2Vault } from "src/interfaces/yearn/IV2Vault.sol";
+import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 
 /**
  * @title Zap
@@ -25,6 +27,7 @@ contract Zap {
     address public immutable LP_YYB;
     address public immutable YBS;
     address public immutable POOL;
+    address public immutable VE_YB;
 
     address public sweepRecipient;
     uint256 public mintBuffer;
@@ -39,6 +42,7 @@ contract Zap {
         address _lpYyb,
         address _ybs,
         address _pool,
+        address _veYb,
         address _sweepRecipient
     ) {
         require(_yb != address(0), "!yb");
@@ -47,6 +51,7 @@ contract Zap {
         require(_lpYyb != address(0), "!lpYyb");
         require(_ybs != address(0), "!ybs");
         require(_pool != address(0), "!pool");
+        require(_veYb != address(0), "!veYb");
         require(_sweepRecipient != address(0), "!recipient");
 
         YB = _yb;
@@ -55,6 +60,7 @@ contract Zap {
         LP_YYB = _lpYyb;
         YBS = _ybs;
         POOL = _pool;
+        VE_YB = _veYb;
         sweepRecipient = _sweepRecipient;
         mintBuffer = 15;
 
@@ -86,11 +92,15 @@ contract Zap {
     ) external returns (uint256) {
         require(amountIn > 0, "!amount");
         require(inputToken != outputToken, "same token");
-        require(_isValidOutput(outputToken), "!output");
+        require(isValidOutputToken(outputToken), "!output");
 
         uint256 amount = amountIn;
         if (amount == type(uint256).max) {
-            amount = IERC20(inputToken).balanceOf(msg.sender);
+            if (inputToken == VE_YB) {
+                amount = _getLockedAmount(msg.sender);
+            } else {
+                amount = IERC20(inputToken).balanceOf(msg.sender);
+            }
         }
 
         uint256 yybAmount;
@@ -99,12 +109,21 @@ contract Zap {
             IERC20(inputToken).safeTransferFrom(msg.sender, address(this), amount);
             yybAmount = _convertYb(amount);
         } else {
-            require(_isValidInput(inputToken), "!input");
-
+            require(isValidInputToken(inputToken), "!input");
             if (inputToken != YBS) {
-                IERC20(inputToken).safeTransferFrom(msg.sender, address(this), amount);
+                if (inputToken == VE_YB) {
+                    amount = _getLockedAmount(msg.sender);
+                    require(amountIn >= amount, "lock > amountIn");
+                    IERC721(VE_YB).safeTransferFrom(
+                        msg.sender,
+                        IYToken(YYB).locker(),
+                        uint256(uint160(msg.sender)),
+                        abi.encode(address(this)) // data
+                    );
+                } else {
+                    IERC20(inputToken).safeTransferFrom(msg.sender, address(this), amount);
+                }
             }
-
             if (inputToken == YV_YYB) {
                 yybAmount = IERC4626(YV_YYB).redeem(amount, address(this), address(this));
             } else if (inputToken == LP_YYB) {
@@ -112,9 +131,8 @@ contract Zap {
                 yybAmount = ICurvePool(POOL).remove_liquidity_one_coin(lpAmount, int128(1), 0, address(this));
             } else if (inputToken == YBS) {
                 yybAmount = IYBS(YBS).unstakeFor(msg.sender, amount, address(this));
-            } else {
-                yybAmount = amount;
             }
+            else yybAmount = amount;
         }
 
         if (outputToken == YYB) {
@@ -175,6 +193,8 @@ contract Zap {
 
     /**
      * @notice Convert shares to assets for a V2 vault accounting for locked profit
+     * @dev Yearn v2-style locked profit: emulate vault's internal lockedProfit decay instead of using a v3/4626-style convertToAssets.
+     * @dev Used only for quoting LP_YYB share <-> asset value.
      * @param vault V2 vault address
      * @param shares Amount of shares to convert
      * @return Amount of assets
@@ -189,6 +209,8 @@ contract Zap {
 
     /**
      * @notice Convert assets to shares for a V2 vault accounting for locked profit
+     * @dev Yearn v2-style locked profit: emulate vault's internal lockedProfit decay instead of using a v3/4626-style convertToShares.
+     * @dev Used only for quoting LP_YYB share <-> asset value.
      * @param vault V2 vault address
      * @param amount Amount of assets to convert
      * @return Amount of shares
@@ -249,7 +271,7 @@ contract Zap {
         address outputToken,
         uint256 amountIn
     ) external view returns (uint256) {
-        require(_isValidOutput(outputToken), "!output");
+        require(isValidOutputToken(outputToken), "!output");
         require(inputToken != outputToken, "same token");
 
         if (amountIn == 0) {
@@ -262,8 +284,9 @@ contract Zap {
             uint256 outputAmount = ICurvePool(POOL).get_dy(0, 1, amount);
             uint256 bufferedAmount = amount + (amount * mintBuffer / 10_000);
             amount = outputAmount > bufferedAmount ? outputAmount : amount;
-        } else {
-            require(_isValidInput(inputToken), "!input");
+        }
+        else {
+            require(isValidInputToken(inputToken), "!input");
             if (inputToken == YV_YYB) {
                 amount = IERC4626(YV_YYB).convertToAssets(amount);
             } else if (inputToken == LP_YYB) {
@@ -298,8 +321,8 @@ contract Zap {
         address outputToken,
         uint256 amountIn
     ) external view returns (uint256) {
-        require(_isValidOutput(outputToken), "!output");
-        require(_isValidInput(inputToken) || inputToken == YB, "!input");
+        require(isValidOutputToken(outputToken), "!output");
+        require(isValidInputToken(inputToken), "!input");
 
         if (amountIn == 0 || inputToken == outputToken) {
             return amountIn;
@@ -360,11 +383,50 @@ contract Zap {
         IERC20(token).safeTransfer(sweepRecipient, value);
     }
 
-    function _isValidInput(address token) internal view returns (bool) {
-        return token == YYB || token == YV_YYB || token == LP_YYB || token == YBS;
+    function _getLockedAmount(address user) internal view returns (uint256) {
+        (int256 locked,) = IYBVotingEscrow(VE_YB).locked(user);
+        return locked > 0 ? uint256(locked) : 0;
     }
 
-    function _isValidOutput(address token) internal view returns (bool) {
-        return token == YYB || token == YV_YYB || token == LP_YYB || token == YBS;
+    // Input/Output Token Helpers
+
+    function inputTokens() external view returns (address[] memory tokens) {
+        tokens = new address[](6);
+        tokens[0] = YB;
+        tokens[1] = YYB;
+        tokens[2] = YV_YYB;
+        tokens[3] = LP_YYB;
+        tokens[4] = YBS;
+        tokens[5] = VE_YB;
+        return tokens;
+    }
+
+    function outputTokens() external view returns (address[] memory tokens) {
+        tokens = new address[](4);
+        tokens[0] = YYB;
+        tokens[1] = YV_YYB;
+        tokens[2] = LP_YYB;
+        tokens[3] = YBS;
+        return tokens;
+    }
+
+    function isValidInputToken(address token) public view returns (bool) {
+        return (
+            token == YB ||
+            token == YYB ||
+            token == YV_YYB ||
+            token == LP_YYB ||
+            token == YBS ||
+            token == VE_YB
+        );
+    }
+
+    function isValidOutputToken(address token) public view returns (bool) {
+        return (
+            token == YYB ||
+            token == YV_YYB ||
+            token == LP_YYB ||
+            token == YBS
+        );
     }
 }

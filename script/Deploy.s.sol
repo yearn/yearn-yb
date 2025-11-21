@@ -48,7 +48,7 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
     }
 
     function isYBSDeployed() public view returns (bool) {
-        return false;//addressHasCode(YBS.YBS_YB);
+        return addressHasCode(YBS.YBS_YB);
     }
 
     function deployLocker() public returns (address) {

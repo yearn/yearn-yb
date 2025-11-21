@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { Test } from "forge-std/Test.sol";
+import { console } from "forge-std/console.sol";
+import { Setup } from "test/utils/Setup.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Protocol, YB, Curve, YBS } from "src/utils/Constants.sol";
 import { Zap } from "src/Zap.sol";
 import { ICurvePool } from "src/interfaces/curve/ICurvePool.sol";
 import { IYBS } from "src/interfaces/ybs/IYBS.sol";
 
-contract ZapTest is Test {
+contract ZapTest is Setup {
     Zap public zap;
     IERC20 public yb;
     IERC20 public yyb;
@@ -17,11 +19,13 @@ contract ZapTest is Test {
     IERC20 public lpYyb;
     IERC20 public ybs;
     IERC20 public pool;
+    IERC721 public veYb;
 
     address public sweepRecipient = address(0x999);
     uint256 public constant INITIAL_BALANCE = 1_000_000e18;
 
-    function setUp() public {
+    function setUp() public virtual override {
+        super.setUp();
         vm.createSelectFork(vm.envString("TENDERLY_URL"));
 
         yb = IERC20(YB.TOKEN);
@@ -30,6 +34,7 @@ contract ZapTest is Test {
         yvYyb = IERC20(Protocol.YV_YYB);
         lpYyb = IERC20(Protocol.YV_LPYYB);
         ybs = IERC20(YBS.YBS_YB);
+        veYb = IERC721(YB.VEYB);
 
         zap = new Zap(
             address(yb),
@@ -38,6 +43,7 @@ contract ZapTest is Test {
             address(lpYyb),
             address(ybs),
             address(pool),
+            address(veYb),
             sweepRecipient
         );
         
@@ -65,6 +71,9 @@ contract ZapTest is Test {
         maxApprove(pool, address(lpYyb));
 
         // Fund
+        createLock(address(this), INITIAL_BALANCE, block.timestamp + 100 days);
+        toggleInfiniteLock(address(this), true);
+        veYb.approve(address(zap), uint256(uint160(address(this))));
         deal(address(yb), address(this), INITIAL_BALANCE);
         deal(address(yyb), address(this), INITIAL_BALANCE);
         uint256 amount = 50_000e18;
@@ -200,6 +209,18 @@ contract ZapTest is Test {
 
         assertGt(received, 0);
         assertEq(yvYyb.balanceOf(address(this)), balanceBefore + received);
+    }
+
+    function test_ZapNftToYyb() public {
+        uint256 balanceBefore = yyb.balanceOf(address(this));
+        uint256 amount = _getLockedAmount(address(this));
+        console.log("amount", amount);
+        console.log("balance", veYb.balanceOf(address(this)));
+        uint256 received = zap.zap(address(veYb), address(yyb), amount, 0, address(this));
+        assertGt(received, 0);
+        assertEq(yyb.balanceOf(address(this)), balanceBefore + received);
+        assertEq(veYb.balanceOf(address(this)), 0);
+        assertEq(received, amount);
     }
 
     function test_ZapRevertsWithZeroAmount() public {
@@ -342,14 +363,14 @@ contract ZapTest is Test {
     }
 
     function test_ExhaustiveZapPermutations() public {
-        address[5] memory tokens = [address(yb), address(yyb), address(yvYyb), address(lpYyb), address(ybs)];
+        address[] memory tokens = mergedTokens();
         uint256 zapAmount = 1000e18;
 
         for (uint256 i = 0; i < tokens.length; i++) {
             for (uint256 j = 0; j < tokens.length; j++) {
                 if (tokens[i] == tokens[j]) continue;
-                if (tokens[j] == address(yb)) continue;
-
+                if (!zap.isValidInputToken(tokens[i]) || !zap.isValidOutputToken(tokens[j])) continue;
+                console.log("Testing zap from %s to %s", tokens[i], tokens[j]);
                 uint256 snapshot = vm.snapshot();
                 _testZapPermutation(tokens[i], tokens[j], zapAmount);
                 vm.revertTo(snapshot);
@@ -358,14 +379,15 @@ contract ZapTest is Test {
     }
 
     function _testZapPermutation(address inputToken, address outputToken, uint256 amount) internal {
+        if (inputToken == address(veYb)) amount = _getLockedAmount(address(this));
         uint256 expectedOut = zap.calcExpectedOut(inputToken, outputToken, amount);
         uint256 relPrice = zap.relativePrice(inputToken, outputToken, amount);
 
-        uint256 outputBalanceBefore = _getBalance(outputToken);
+        uint256 outputBalanceBefore = IERC20(outputToken).balanceOf(address(this));
 
         uint256 actualOut = zap.zap(inputToken, outputToken, amount, 0, address(this));
 
-        uint256 actualReceived = _getBalance(outputToken) - outputBalanceBefore;
+        uint256 actualReceived = IERC20(outputToken).balanceOf(address(this)) - outputBalanceBefore;
 
         assertEq(actualReceived, actualOut, "Balance mismatch");
         assertApproxEqRel(actualOut, expectedOut, 0.02e18, "Expected vs actual mismatch");
@@ -377,10 +399,33 @@ contract ZapTest is Test {
         IYBS(address(ybs)).setApprovedCaller(caller, IYBS.ApprovalStatus.StakeAndUnstake);
     }
 
-    function _getBalance(address token) internal view returns (uint256) {
-        if (token == address(ybs)) {
-            return ybs.balanceOf(address(this));
+    function mergedTokens() public view returns (address[] memory m) {
+        address[] memory a = zap.inputTokens();
+        address[] memory b = zap.outputTokens();
+        address[] memory tmp = new address[](a.length + b.length);
+        uint256 n;
+
+        unchecked {
+            for (uint256 i; i < a.length; ++i) {
+                address x = a[i];
+                bool dup;
+                for (uint256 k; k < n; ++k) if (tmp[k] == x) { dup = true; break; }
+                if (!dup) tmp[n++] = x;
+            }
+            for (uint256 j; j < b.length; ++j) {
+                address x = b[j];
+                bool dup;
+                for (uint256 k; k < n; ++k) if (tmp[k] == x) { dup = true; break; }
+                if (!dup) tmp[n++] = x;
+            }
         }
-        return IERC20(token).balanceOf(address(this));
+
+        m = new address[](n);
+        for (uint256 i; i < n; ++i) m[i] = tmp[i];
+    }
+
+    function _getLockedAmount(address user) internal view returns (uint256) {
+        (int256 locked,) = escrow.locked(user);
+        return locked > 0 ? uint256(locked) : 0;
     }
 }
