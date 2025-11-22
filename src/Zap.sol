@@ -28,12 +28,15 @@ contract Zap {
     address public immutable YBS;
     address public immutable POOL;
     address public immutable VE_YB;
-
-    address public sweepRecipient;
     uint256 public mintBuffer;
 
     event UpdateSweepRecipient(address indexed sweepRecipient);
     event UpdateMintBuffer(uint256 mintBuffer);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner(), "!owner");
+        _;
+    }
 
     constructor(
         address _yb,
@@ -42,8 +45,7 @@ contract Zap {
         address _lpYyb,
         address _ybs,
         address _pool,
-        address _veYb,
-        address _sweepRecipient
+        address _veYb
     ) {
         require(_yb != address(0), "!yb");
         require(_yyb != address(0), "!yyb");
@@ -52,7 +54,6 @@ contract Zap {
         require(_ybs != address(0), "!ybs");
         require(_pool != address(0), "!pool");
         require(_veYb != address(0), "!veYb");
-        require(_sweepRecipient != address(0), "!recipient");
 
         YB = _yb;
         YYB = _yyb;
@@ -61,7 +62,6 @@ contract Zap {
         YBS = _ybs;
         POOL = _pool;
         VE_YB = _veYb;
-        sweepRecipient = _sweepRecipient;
         mintBuffer = 15;
 
         IERC20(_yb).forceApprove(_yyb, type(uint256).max);
@@ -91,8 +91,9 @@ contract Zap {
         address recipient
     ) external returns (uint256) {
         require(amountIn > 0, "!amount");
+        require(isValidInputToken(inputToken), "invalid input token");
+        require(isValidOutputToken(outputToken), "invalid output token");
         require(inputToken != outputToken, "same token");
-        require(isValidOutputToken(outputToken), "!output");
 
         uint256 amount = amountIn;
         if (amount == type(uint256).max) {
@@ -109,7 +110,6 @@ contract Zap {
             IERC20(inputToken).safeTransferFrom(msg.sender, address(this), amount);
             yybAmount = _convertYb(amount);
         } else {
-            require(isValidInputToken(inputToken), "!input");
             if (inputToken != YBS) {
                 if (inputToken == VE_YB) {
                     amount = _getLockedAmount(msg.sender);
@@ -196,7 +196,7 @@ contract Zap {
             require(amountOut + 1 >= minOut, "slippage");
             return amountOut;
         } else {
-            require(outputToken == LP_YYB, "!output");
+            require(outputToken == LP_YYB, "unexpected output token");
             uint256[] memory amounts = new uint256[](2);
             amounts[0] = 0;
             amounts[1] = amount;
@@ -221,7 +221,8 @@ contract Zap {
         address outputToken,
         uint256 amountIn
     ) external view returns (uint256) {
-        require(isValidOutputToken(outputToken), "!output");
+        require(isValidInputToken(inputToken), "invalid input token");
+        require(isValidOutputToken(outputToken), "invalid output token");
         require(inputToken != outputToken, "same token");
 
         if (amountIn == 0) {
@@ -236,11 +237,10 @@ contract Zap {
             amount = outputAmount > bufferedAmount ? outputAmount : amount;
         }
         else {
-            require(isValidInputToken(inputToken), "!input");
             if (inputToken == YV_YYB) {
                 amount = IERC4626(YV_YYB).convertToAssets(amount);
             } else if (inputToken == LP_YYB) {
-                uint256 lpAmount = YV2Helper._sharesToAmount(LP_YYB, amount);
+                uint256 lpAmount = YV2Helper.sharesToAmount(LP_YYB, amount);
                 amount = ICurvePool(POOL).calc_withdraw_one_coin(lpAmount, int128(1));
             }
         }
@@ -254,7 +254,7 @@ contract Zap {
             amounts[0] = 0;
             amounts[1] = amount;
             uint256 lpAmount = ICurvePool(POOL).calc_token_amount(amounts, true);
-            return YV2Helper._amountToShares(LP_YYB, lpAmount);
+            return YV2Helper.amountToShares(LP_YYB, lpAmount);
         }
     }
 
@@ -271,19 +271,18 @@ contract Zap {
         address outputToken,
         uint256 amountIn
     ) external view returns (uint256) {
-        require(isValidOutputToken(outputToken), "!output");
-        require(isValidInputToken(inputToken), "!input");
+        require(isValidOutputToken(outputToken), "invalid output token");
+        require(isValidInputToken(inputToken), "invalid input token");
 
         if (amountIn == 0 || inputToken == outputToken) {
             return amountIn;
         }
-
         uint256 amount = amountIn;
 
         if (inputToken == YV_YYB) {
             amount = IERC4626(YV_YYB).convertToAssets(amount);
         } else if (inputToken == LP_YYB) {
-            uint256 lpAmount = YV2Helper._sharesToAmount(LP_YYB, amount);
+            uint256 lpAmount = YV2Helper.sharesToAmount(LP_YYB, amount);
             amount = ICurvePool(POOL).get_virtual_price() * lpAmount / 1e18;
         }
 
@@ -293,27 +292,15 @@ contract Zap {
             return IERC4626(YV_YYB).convertToShares(amount);
         } else {
             uint256 lpAmount = amount * 1e18 / ICurvePool(POOL).get_virtual_price();
-            return YV2Helper._amountToShares(LP_YYB, lpAmount);
+            return YV2Helper.amountToShares(LP_YYB, lpAmount);
         }
-    }
-
-    /**
-     * @notice Update sweep recipient address
-     * @param newRecipient New sweep recipient
-     */
-    function setSweepRecipient(address newRecipient) external {
-        require(msg.sender == sweepRecipient, "!auth");
-        require(newRecipient != address(0), "!recipient");
-        sweepRecipient = newRecipient;
-        emit UpdateSweepRecipient(newRecipient);
     }
 
     /**
      * @notice Update mint buffer for YB->yYB conversion logic
      * @param newBuffer New buffer in basis points (max 500 = 5%)
      */
-    function setMintBuffer(uint256 newBuffer) external {
-        require(msg.sender == sweepRecipient, "!auth");
+    function setMintBuffer(uint256 newBuffer) external onlyOwner {
         require(newBuffer < 500, "buffer too high");
         mintBuffer = newBuffer;
         emit UpdateMintBuffer(newBuffer);
@@ -324,22 +311,15 @@ contract Zap {
      * @param token Token to sweep
      * @param amount Amount to sweep (max uint256 for full balance)
      */
-    function sweep(address token, uint256 amount) external {
-        require(msg.sender == sweepRecipient, "!auth");
+    function sweep(address token, uint256 amount) external onlyOwner {
         uint256 value = amount;
         if (value == type(uint256).max) {
             value = IERC20(token).balanceOf(address(this));
         }
-        IERC20(token).safeTransfer(sweepRecipient, value);
-    }
-
-    function _getLockedAmount(address user) internal view returns (uint256) {
-        (int256 locked,) = IYBVotingEscrow(VE_YB).locked(user);
-        return locked > 0 ? uint256(locked) : 0;
+        IERC20(token).safeTransfer(owner(), value);
     }
 
     // Input/Output Token Helpers
-
     function inputTokens() external view returns (address[] memory tokens) {
         tokens = new address[](6);
         tokens[0] = YB;
@@ -378,5 +358,15 @@ contract Zap {
             token == LP_YYB ||
             token == YBS
         );
+    }
+
+    // Get locked YB for a user
+    function _getLockedAmount(address user) internal view returns (uint256) {
+        (int256 locked,) = IYBVotingEscrow(VE_YB).locked(user);
+        return locked > 0 ? uint256(locked) : 0;
+    }
+
+    function owner() public view returns (address) {
+        return IYToken(YYB).owner();
     }
 }

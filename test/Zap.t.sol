@@ -21,7 +21,6 @@ contract ZapTest is Setup {
     IERC20 public pool;
     IERC721 public veYb;
 
-    address public sweepRecipient = address(0x999);
     uint256 public constant INITIAL_BALANCE = 1_000_000e18;
 
     function setUp() public virtual override {
@@ -43,8 +42,7 @@ contract ZapTest is Setup {
             address(lpYyb),
             address(ybs),
             address(pool),
-            address(veYb),
-            sweepRecipient
+            address(veYb)
         );
         
         _seedLiquidity();
@@ -234,12 +232,12 @@ contract ZapTest is Setup {
     }
 
     function test_ZapRevertsWithInvalidOutput() public {
-        vm.expectRevert("!output");
+        vm.expectRevert("invalid output token");
         zap.zap(address(yb), address(0xdead), 1000e18, 0, address(this));
     }
 
     function test_ZapRevertsWithInvalidInput() public {
-        vm.expectRevert("!input");
+        vm.expectRevert("invalid input token");
         zap.zap(address(0xdead), address(yyb), 1000e18, 0, address(this));
     }
 
@@ -298,67 +296,47 @@ contract ZapTest is Setup {
     function test_SetMintBuffer() public {
         uint256 newBuffer = 25;
 
-        vm.prank(sweepRecipient);
+        vm.prank(zap.owner());
         zap.setMintBuffer(newBuffer);
 
         assertEq(zap.mintBuffer(), newBuffer);
     }
 
-    function test_SetMintBufferRevertsWhenNotSweepRecipient() public {
-        vm.expectRevert("!auth");
+    function test_SetMintBufferRevertsWhenNotOwner() public {
+        vm.expectRevert("!owner");
         zap.setMintBuffer(25);
     }
 
     function test_SetMintBufferRevertsWhenTooHigh() public {
+        vm.prank(zap.owner());
         vm.expectRevert("buffer too high");
-        vm.prank(sweepRecipient);
         zap.setMintBuffer(500);
-    }
-
-    function test_SetSweepRecipient() public {
-        address newRecipient = address(0x123);
-
-        vm.prank(sweepRecipient);
-        zap.setSweepRecipient(newRecipient);
-
-        assertEq(zap.sweepRecipient(), newRecipient);
-    }
-
-    function test_SetSweepRecipientRevertsWhenNotSweepRecipient() public {
-        vm.expectRevert("!auth");
-        zap.setSweepRecipient(address(0x123));
-    }
-
-    function test_SetSweepRecipientRevertsWithZeroAddress() public {
-        vm.expectRevert("!recipient");
-        vm.prank(sweepRecipient);
-        zap.setSweepRecipient(address(0));
     }
 
     function test_Sweep() public {
         deal(address(yb), address(zap), 100e18);
-        uint256 balanceBefore = yb.balanceOf(sweepRecipient);
+        uint256 balanceBefore = yb.balanceOf(zap.owner());
 
-        vm.prank(sweepRecipient);
+        vm.prank(zap.owner());
         zap.sweep(address(yb), 100e18);
 
-        assertEq(yb.balanceOf(sweepRecipient), balanceBefore + 100e18);
+        assertEq(yb.balanceOf(zap.owner()), balanceBefore + 100e18);
         assertEq(yb.balanceOf(address(zap)), 0);
     }
 
     function test_SweepWithMaxUint256() public {
         deal(address(yb), address(zap), 100e18);
-        uint256 balanceBefore = yb.balanceOf(sweepRecipient);
+        uint256 balanceBefore = yb.balanceOf(zap.owner());
 
-        vm.prank(sweepRecipient);
+        vm.prank(zap.owner());
         zap.sweep(address(yb), type(uint256).max);
 
-        assertEq(yb.balanceOf(sweepRecipient), balanceBefore + 100e18);
+        assertEq(yb.balanceOf(zap.owner()), balanceBefore + 100e18);
         assertEq(yb.balanceOf(address(zap)), 0);
     }
 
-    function test_SweepRevertsWhenNotSweepRecipient() public {
-        vm.expectRevert("!auth");
+    function test_SweepRevertsWhenNotOwner() public {
+        vm.expectRevert("!owner");
         zap.sweep(address(yb), 100e18);
     }
 

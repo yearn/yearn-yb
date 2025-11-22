@@ -60,7 +60,6 @@ CONTRACTS = {
             "0x5D2eA33449A60a70E8FCdc5251FDd86a030fAD91",  # YBS.YBS_YB (ybs-yYB)
             "0x64c08F63De0D4AF43aE09d3E26737ED2A492F02B",  # Curve.POOL
             "0x8235c179E9e84688FBd8B12295EfC26834dAC211",  # YB.VEYB
-            "0x4444AAAACDBa5580282365e25b16309Bd770ce4a",  # Protocol.OWNER (sweepRecipient)
         ]
     },
     "NFTHelper": {

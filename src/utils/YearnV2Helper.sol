@@ -32,7 +32,7 @@ library YV2Helper {
      * @param shares Amount of shares to convert
      * @return Amount of assets
      */
-    function _sharesToAmount(address vault, uint256 shares) internal view returns (uint256) {
+    function sharesToAmount(address vault, uint256 shares) internal view returns (uint256) {
         uint256 totalSupply = IV2Vault(vault).totalSupply();
         if (totalSupply == 0) {
             return shares;
@@ -48,7 +48,7 @@ library YV2Helper {
      * @param amount Amount of assets to convert
      * @return Amount of shares
      */
-    function _amountToShares(address vault, uint256 amount) internal view returns (uint256) {
+    function amountToShares(address vault, uint256 amount) internal view returns (uint256) {
         uint256 freeFunds = _getFreeFunds(vault);
         if (freeFunds == 0) {
             return amount;

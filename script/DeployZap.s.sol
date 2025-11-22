@@ -19,8 +19,7 @@ contract DeployZap is Script, TenderlyHelper {
             Protocol.YV_LPYYB, // lp-yYB
             YBS.YBS_YB, // ybs-yYB
             Curve.POOL, // pool
-            YB.VEYB, // veYb
-            Protocol.OWNER // sweepRecipient
+            YB.VEYB // veYb
         );
         console.log("--- Zap deployed ---");
         console.log("zap:", address(zap));
