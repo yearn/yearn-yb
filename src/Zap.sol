@@ -90,7 +90,6 @@ contract Zap {
         uint256 minOut,
         address recipient
     ) external returns (uint256) {
-        require(amountIn > 0, "!amount");
         require(isValidInputToken(inputToken), "invalid input token");
         require(isValidOutputToken(outputToken), "invalid output token");
         require(inputToken != outputToken, "same token");
@@ -103,7 +102,7 @@ contract Zap {
                 amount = IERC20(inputToken).balanceOf(msg.sender);
             }
         }
-
+        require(amount > 0, "!amount");
         uint256 yybAmount;
 
         if (inputToken == YB) {
