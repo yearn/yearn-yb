@@ -14,41 +14,49 @@ import { IYBSRegistry } from "src/interfaces/ybs/IYBSRegistry.sol";
 
 contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
 
+    Locker locker;
+    Operator operator;
+    YToken yToken;
+    address nftHelper;
+
     function run() public isBatch(Protocol.OWNER) {
         deployMode = DeployMode.FORK;
         maxGasPerBatch = 15_000_000;
 
-        if (!isProtocolDeployed()) {
-            Locker locker = Locker(payable(deployLocker()));
-            Operator operator = Operator(payable(deployOperator()));
-            YToken yToken = YToken(deployYToken());
-            addToBatch(
-                address(locker),
-                    abi.encodeWithSelector(Locker.setOperator.selector, address(operator))
-            );
-            console.log("--- Protocol deployed ---");
-            console.log("locker", address(locker));
-            console.log("operator", address(operator));
-            console.log("yToken", address(yToken));
-        }
+        // 1. Deploy Locker
+        locker = Locker(payable(deployLocker()));
 
-        if (!isYBSDeployed()) {
-            (address ybs, address distributor, address utils) = deployYBS();
-            console.log("--- YBS deployed ---");
-            console.log("ybs", ybs);
-            console.log("distributor", distributor);
-            console.log("utils", utils);
-        }
+        // 2. Deploy Operator
+        operator = Operator(payable(deployOperator()));
+
+        // 3. Deploy Token
+        yToken = YToken(deployYToken());
+
+        // 4. Set Operator
+        _setOperator();
+
+        nftHelper = deployNFTHelper();
+
+
+        console.log("--- Protocol deployed ---");
+        console.log("locker", address(locker));
+        console.log("operator", address(operator));
+        console.log("yToken", address(yToken));
+
+        (address ybs, address distributor, address utils) = deployYBS();
+        console.log("--- YBS deployed ---");
+        console.log("ybs", ybs);
+        console.log("distributor", distributor);
+        console.log("utils", utils);
 
         if (deployMode == DeployMode.PRODUCTION) executeBatch(true, 0);
     }
 
-    function isProtocolDeployed() public view returns (bool) {
-        return addressHasCode(Protocol.LOCKER);
-    }
-
-    function isYBSDeployed() public view returns (bool) {
-        return addressHasCode(YBS.YBS_YB);
+    function _setOperator() public {
+        addToBatch(
+            address(locker),
+                abi.encodeWithSelector(Locker.setOperator.selector, address(operator))
+        );
     }
 
     function deployLocker() public returns (address) {
@@ -105,14 +113,31 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
     }
 
     function deployYBS() public returns (address ybs, address distributor, address utils) {
-        // vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
-        vm.startBroadcast(YBS.OWNER);
-        (ybs, distributor, utils) = IYBSRegistry(YBS.REGISTRY).createNewDeployment(
-            YBS.STAKE_TOKEN,
-            4, // max_stake_growth_weeks
-            0, // start_time
-            YBS.REWARD_TOKEN
+        bytes memory result = addToBatch(
+            address(YBS.REGISTRY),
+            abi.encodeWithSelector(IYBSRegistry.createNewDeployment.selector,
+                YBS.STAKE_TOKEN,
+                4, // max_stake_growth_weeks
+                0, // start_time
+                YBS.REWARD_TOKEN
+            )
         );
-        vm.stopBroadcast();
+        (ybs, distributor, utils) = abi.decode(result, (address, address, address));
+    }
+
+    function deployNFTHelper() public returns (address) {
+        bytes32 salt = CreateX.SALT_NFTHelper;
+        bytes memory constructorArgs = abi.encode(
+            YB.GAUGE_CONTROLLER,
+            YB.VEYB
+        );
+        bytes memory bytecode = abi.encodePacked(vm.getCode("NFTHelper.sol:NFTHelper"), constructorArgs);
+        addToBatch(
+            address(createXFactory),
+            encodeCREATE3Deployment(salt, bytecode)
+        );
+        address deployedAddress = computeCreate3AddressFromSaltPreimage(salt, Protocol.OWNER, true, false);
+        require(deployedAddress.code.length > 0, "deployment failed");
+        return deployedAddress;
     }
 }
