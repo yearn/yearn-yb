@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -17,7 +17,7 @@ contract Locker is Ownable2Step, IERC721Receiver {
     bytes4 public immutable INCREASE_AMOUNT_SELECTOR;
     address public operator;
 
-    event OperatorUpdated(address operator);
+    event OperatorUpdated(address indexed operator);
     event Executed(address indexed caller, address indexed to);
 
     constructor(
