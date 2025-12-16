@@ -27,11 +27,11 @@ contract DeployCurvePool is Script, SafeHelper, TenderlyHelper {
         address pool = Curve.POOL;
         pool = ICurvePool(Curve.CURVE_STABLE_FACTORY).deploy_plain_pool(
             "YB/yYB", // name
-            "YByYB", // symbol
+            "yYB-LP", // symbol
             coins, // coins
-            200, // A
-            4000000, // fee
-            50000000000, // offpeg_fee_multiplier
+            37, // A
+            25000000, // fee
+            20000000000, // offpeg_fee_multiplier
             866, // ma_exp_time
             0, // implementation_idx
             assetTypes, // asset_types
