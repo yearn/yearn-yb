@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.20;
 
 import { console } from "forge-std/console.sol";
@@ -42,12 +42,13 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
         console.log("locker", address(locker));
         console.log("operator", address(operator));
         console.log("yToken", address(yToken));
+        console.log("nftHelper", address(nftHelper));
 
-        (address ybs, address distributor, address utils) = deployYBS();
-        console.log("--- YBS deployed ---");
-        console.log("ybs", ybs);
-        console.log("distributor", distributor);
-        console.log("utils", utils);
+        // (address ybs, address distributor, address utils) = deployYBS();
+        // console.log("--- YBS deployed ---");
+        // console.log("ybs", ybs);
+        // console.log("distributor", distributor);
+        // console.log("utils", utils);
 
         if (deployMode == DeployMode.PRODUCTION) executeBatch(true, 0);
     }

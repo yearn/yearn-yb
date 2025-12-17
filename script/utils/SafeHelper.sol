@@ -5,7 +5,7 @@ pragma solidity >=0.6.2 <0.9.0;
 // Gnosis Safe transaction batching script
 
 // 🧩 MODULES
-import {Script, console2, stdJson} from "forge-std/Script.sol";
+import {Script, console2, StdChains, stdJson, stdMath, StdStorage, stdStorageSafe, VmSafe} from "forge-std/Script.sol";
 import {Test} from "forge-std/Test.sol";
 import {Surl} from "lib/surl/src/Surl.sol";
 
@@ -373,11 +373,7 @@ abstract contract SafeHelper is Script, Test {
         string memory endpoint = _getSafeTransactionAPIEndpoint(safe_);
         string memory payload = _buildBatchPayload(safe_, batch_);
 
-        // Send batch
-        (uint256 status, bytes memory data) = endpoint.post(
-            _getHeaders(),
-            payload
-        );
+        (uint256 status, bytes memory data) = _curlPost(endpoint, payload);
 
         if (status == 200 || status == 201) {
             console2.log("Batch sent successfully");
@@ -537,21 +533,43 @@ abstract contract SafeHelper is Script, Test {
     }
 
     function _getNonce(address safe_) private returns (uint256) {
-        string memory endpoint = string.concat(
-            _getSafeNonceAPIEndpoint(safe_)
-        );
-        
-        // Add proper headers for the Safe API
-        string[] memory headers = new string[](1);
-        headers[0] = "User-Agent: Mozilla/5.0 (compatible; SafeHelper/1.0)";
-        
-        (uint256 status, bytes memory data) = endpoint.get(headers);
+        string memory endpoint = _getSafeNonceAPIEndpoint(safe_);
+
+        (uint256 status, bytes memory data) = _curlGet(endpoint);
         if (status == 200) {
             string memory resp = string(data);
             return resp.readUint(".nonce");
         } else {
             revert(string(abi.encodePacked("Error fetching nonce: ", vm.toString(status), ", ", string(data))));
         }
+    }
+
+    function _curlGet(string memory url) private returns (uint256 status, bytes memory data) {
+        string[] memory inputs = new string[](3);
+        inputs[0] = "bash";
+        inputs[1] = "-c";
+        inputs[2] = string.concat(
+            'response=$(curl -sL -w "\\n%{http_code}" -H "User-Agent: Mozilla/5.0 (compatible; SafeHelper/1.0)" "',
+            url,
+            '"); status=$(tail -n1 <<< "$response"); data=$(sed "$ d" <<< "$response"); data=$(echo "$data" | tr -d "\\n"); cast abi-encode "response(uint256,string)" "$status" "$data";'
+        );
+        bytes memory res = vm.ffi(inputs);
+        (status, data) = abi.decode(res, (uint256, bytes));
+    }
+
+    function _curlPost(string memory url, string memory payload) private returns (uint256 status, bytes memory data) {
+        string[] memory inputs = new string[](3);
+        inputs[0] = "bash";
+        inputs[1] = "-c";
+        inputs[2] = string.concat(
+            "response=$(curl -sL -w '\\n%{http_code}' -H 'Content-Type: application/json' -X POST -d '",
+            payload,
+            "' \"",
+            url,
+            "\"); status=$(tail -n1 <<< \"$response\"); data=$(sed \"$ d\" <<< \"$response\"); data=$(echo \"$data\" | tr -d \"\\n\"); cast abi-encode \"response(uint256,string)\" \"$status\" \"$data\";"
+        );
+        bytes memory res = vm.ffi(inputs);
+        (status, data) = abi.decode(res, (uint256, bytes));
     }
 
     function _getSafeTransactionAPIEndpoint(
