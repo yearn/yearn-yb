@@ -19,7 +19,7 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
     YToken yToken = YToken(Protocol.YTOKEN);
 
     function run() public isBatch(Protocol.OWNER) {
-        deployMode = DeployMode.FORK;
+        deployMode = DeployMode.PRODUCTION;
         maxGasPerBatch = 15_000_000;
 
         (address ybs, address distributor, address utils) = deployYBS();

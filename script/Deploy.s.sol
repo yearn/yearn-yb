@@ -20,7 +20,7 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
     address nftHelper;
 
     function run() public isBatch(Protocol.OWNER) {
-        deployMode = DeployMode.FORK;
+        deployMode = DeployMode.PRODUCTION;
         maxGasPerBatch = 15_000_000;
 
         // 1. Deploy Locker
@@ -50,7 +50,7 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
         // console.log("distributor", distributor);
         // console.log("utils", utils);
 
-        if (deployMode == DeployMode.PRODUCTION) executeBatch(true, 0);
+        if (deployMode == DeployMode.PRODUCTION) executeBatch(true, 609);
     }
 
     function _setOperator() public {
