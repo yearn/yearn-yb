@@ -68,9 +68,15 @@ contract MigrateLockerTest is Test {
             address(yToken)
         );
 
+        // Cache not yet updated
+        assertLt(newOperator.cachedLockedAmount(), newOperator.getLockedAmount());
+
         // Set operator on new locker
         vm.prank(owner);
         newLocker.setOperator(address(newOperator));
+
+        // Cache now updated
+        assertEq(newOperator.cachedLockedAmount(), newOperator.getLockedAmount());
 
         // Verify new operator state
         assertGt(newOperator.getLockedAmount(), 0, "New operator should have locked amount");
