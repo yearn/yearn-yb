@@ -13,7 +13,7 @@ interface IFeeDistributor {
     function rewardToken() external view returns(address);
 }
 
-contract FeeReceiver {
+contract FeeDepositor {
     using SafeERC20 for IERC20;
 
     address public constant LOCKER = 0x0000000C90799449af8eE0B240Da639144a36C6A;
