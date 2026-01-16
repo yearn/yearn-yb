@@ -103,5 +103,5 @@ interface IOperator {
 
     function cachedLockedAmount() external view returns(uint256);
     
-    function setCachedLockedAmount() external view;
+    function setCachedLockedAmount() external;
 }

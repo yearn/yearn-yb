@@ -110,9 +110,9 @@ contract LockerTest is Setup {
     function test_OperatorChangeRevokesAccess() public {
         locker.setOperator(address(operator));
 
-        // Change to different operator
-        address newOperator = address(0x4);
-        locker.setOperator(newOperator);
+        // Change to different operator (must be a valid contract that implements IOperator)
+        Operator newOperator = new Operator(payable(address(locker)), address(gaugeController), address(daoVoting), address(yToken));
+        locker.setOperator(address(newOperator));
 
         // Old operator can no longer execute
         bytes memory data = abi.encodeWithSignature("setValue(uint256)", 100);
