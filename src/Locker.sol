@@ -37,6 +37,7 @@ contract Locker is Ownable2Step, IERC721Receiver {
     function setOperator(address _operator) external onlyOwner {
         require(_operator != address(0), "!valid");
         operator = _operator;
+        IOperator(_operator).setCachedLockedAmount();
         emit OperatorUpdated(_operator);
     }
 

@@ -100,4 +100,8 @@ interface IOperator {
 
     /// @notice Callback for receiving ERC721 NFTs (veYB position transfers)
     function nftTransferCallback(address from, uint256 tokenId, address recipient) external;
+
+    function cachedLockedAmount() external view returns(uint256);
+    
+    function setCachedLockedAmount() external view;
 }
