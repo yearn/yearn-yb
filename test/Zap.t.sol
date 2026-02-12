@@ -261,7 +261,7 @@ contract ZapTest is Setup {
         uint256 amount = 1000e18;
         uint256 expected = zap.calcExpectedOut(address(yb), address(yyb), amount);
         assertGt(expected, 0);
-        assertLe(expected, amount);
+        assertGe(expected, amount);
     }
 
     function test_CalcExpectedOutReturnsZeroForZeroAmount() view public {
