@@ -20,7 +20,7 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
     address nftHelper;
 
     function run() public isBatch(Protocol.OWNER) {
-        deployMode = DeployMode.PRODUCTION;
+        deployMode = DeployMode.FORK;
         maxGasPerBatch = 15_000_000;
 
         // 1. Deploy Locker
@@ -29,14 +29,8 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
         // 2. Deploy Operator
         operator = Operator(payable(deployOperator()));
 
-        // 3. Deploy Token
-        yToken = YToken(deployYToken());
-
-        // 4. Set Operator
+        // 3. Set Operator
         _setOperator();
-
-        nftHelper = deployNFTHelper();
-
 
         console.log("--- Protocol deployed ---");
         console.log("locker", address(locker));
@@ -44,13 +38,7 @@ contract Deploy is Script, SafeHelper, CreateXHelper, TenderlyHelper {
         console.log("yToken", address(yToken));
         console.log("nftHelper", address(nftHelper));
 
-        // (address ybs, address distributor, address utils) = deployYBS();
-        // console.log("--- YBS deployed ---");
-        // console.log("ybs", ybs);
-        // console.log("distributor", distributor);
-        // console.log("utils", utils);
-
-        if (deployMode == DeployMode.PRODUCTION) executeBatch(true, 609);
+        if (deployMode == DeployMode.PRODUCTION) executeBatch(true);
     }
 
     function _setOperator() public {

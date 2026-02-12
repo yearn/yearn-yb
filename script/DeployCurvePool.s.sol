@@ -25,7 +25,6 @@ contract DeployCurvePool is Script, SafeHelper, TenderlyHelper {
         address[] memory oracles = new address[](2);
 
         address pool = Curve.POOL;
-        // ref: https://etherscan.io/tx/0xeed1919e0f5440269879bc0968a2bb4d19e2c68ebb896663f0f02fc4dd01fecb
         pool = ICurvePool(Curve.CURVE_STABLE_FACTORY).deploy_plain_pool(
             "YB/yYB", // name
             "yYB-LP", // symbol
