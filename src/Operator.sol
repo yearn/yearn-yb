@@ -68,9 +68,6 @@ contract Operator {
         gaugeController = _gaugeController;
         yToken = _yToken;
         daoVoting = _daoVoting;
-
-        _updateCachedLockedAmount();
-
         lockers[_yToken] = true;
         emit LockerUpdated(_yToken, true);
     }
@@ -166,5 +163,10 @@ contract Operator {
     function _updateCachedLockedAmount() internal returns (uint256 amount) {
         amount = getLockedAmount();
         cachedLockedAmount = amount;
+    }
+
+    function setCachedLockedAmount() external {
+        require(msg.sender == address(locker), "!authorized");
+        _updateCachedLockedAmount();
     }
 }

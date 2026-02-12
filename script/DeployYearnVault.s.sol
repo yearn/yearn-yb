@@ -27,7 +27,7 @@ contract DeployYearnVault is Script, TenderlyHelper {
             Protocol.OWNER, // guardian
             Protocol.OWNER, // rewards
             "Yearn YB Vault", // name
-            "yYBV" // symbol
+            "yYB" // symbol
         );
         console.log("--- Yearn V2 Vault deployed ---");
         console.log("vault:", vault);

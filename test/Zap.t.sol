@@ -25,8 +25,6 @@ contract ZapTest is Setup {
 
     function setUp() public virtual override {
         super.setUp();
-        vm.createSelectFork(vm.envString("TENDERLY_URL"));
-
         yb = IERC20(YB.TOKEN);
         yyb = IERC20(Protocol.YTOKEN);
         pool = IERC20(Curve.POOL);
@@ -263,7 +261,7 @@ contract ZapTest is Setup {
         uint256 amount = 1000e18;
         uint256 expected = zap.calcExpectedOut(address(yb), address(yyb), amount);
         assertGt(expected, 0);
-        assertLe(expected, amount);
+        assertGe(expected, amount);
     }
 
     function test_CalcExpectedOutReturnsZeroForZeroAmount() view public {
@@ -349,7 +347,7 @@ contract ZapTest is Setup {
                 if (tokens[i] == tokens[j]) continue;
                 if (!zap.isValidInputToken(tokens[i]) || !zap.isValidOutputToken(tokens[j])) continue;
                 console.log("Testing zap from %s to %s", tokens[i], tokens[j]);
-                uint256 snapshot = vm.snapshot();
+                uint256 snapshot = vm.snapshotState();
                 _testZapPermutation(tokens[i], tokens[j], zapAmount);
                 vm.revertTo(snapshot);
             }

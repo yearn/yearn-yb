@@ -3,11 +3,13 @@ pragma solidity ^0.8.20;
 
 library Protocol {
     address constant OWNER = 0x4444AAAACDBa5580282365e25b16309Bd770ce4a;
-    address constant LOCKER = 0x0000000C90799449af8eE0B240Da639144a36C6A;
-    address constant OPERATOR = 0x1111111Ecd5Ae05422aeCe517072ec33Dbf34af9;
+    address constant OLD_LOCKER = 0x0000000C90799449af8eE0B240Da639144a36C6A;
+    address constant LOCKER = 0x0000000637Aa094794C1A1f35424d17DFE7De2de;
+    address constant OLD_OPERATOR = 0x1111111Ecd5Ae05422aeCe517072ec33Dbf34af9;
+    address constant OPERATOR = 0x11111112f178487bB2bFcAdbA637758B0b59cedA;
     address constant YTOKEN = 0x22222222aEA0076fCA927a3f44dc0B4FdF9479D6;
-    address constant YV_YYB = 0xA785dbbb48f6C42bE29DeA00Eb1347b341D681a5;
-    address constant YV_LPYYB = 0xe0287cA62fE23f4FFAB827d5448d68aFe6DD9Fd7;
+    address constant YV_YYB = 0x1F6f16945e395593d8050d6Cc33e4328a515B648;
+    address constant YV_LPYYB = 0x0844C227b892be5d7c837000C096f64bFc316c2d;
     address constant NFT_HELPER = 0x99999990aAA1B07506Cb4eA501B46Ba03D526E95;
 }
 
@@ -29,12 +31,13 @@ library YB {
     address constant STAKE_ZAP = 0xE862bC39B8D5F12D8c4117d3e2D493Dc20051EC6;
     address constant DAO_VOTING = 0x2be6670DE1cCEC715bDBBa2e3A6C1A05E496ec78;
     address constant DAO = 0x42F2A41A0D0e65A440813190880c8a65124895Fa;
+    address constant FEE_DISTRIBUTOR = 0xD11b416573EbC59b6B2387DA0D2c0D1b3b1F7A90;
 }
 
 library Curve {
     address internal constant CURVE_STABLE_FACTORY = 0x6A8cbed756804B16E05E741eDaBd5cB544AE21bf;
-    address internal constant POOL = 0x64c08F63De0D4AF43aE09d3E26737ED2A492F02B;
-    address internal constant GAUGE = 0xE064B521c282C988cCE7BB74C6836b63AfA602Ea;
+    address internal constant POOL = 0x5Ee9606e5611Fd6CE14BD2BC12db70BD53dC9daA;
+    address internal constant GAUGE = 0x38746396bd4deE3aa8032c730A0b921d02c84F83;
 }
 
 library Yearn {
@@ -46,8 +49,10 @@ library Yearn {
 library CreateX {
     address constant FACTORY = 0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed;
     // CREATE3 Salts
-    bytes32 constant SALT_LOCKER = 0x4444aaaacdba5580282365e25b16309bd770ce4a009fcc93897e0b2700f8ab4c;
-    bytes32 constant SALT_OPERATOR = 0x4444aaaacdba5580282365e25b16309bd770ce4a00089586a306e5c9037ec220;
+    // bytes32 constant SALT_LOCKER = 0x4444aaaacdba5580282365e25b16309bd770ce4a009fcc93897e0b2700f8ab4c;
+    bytes32 constant SALT_LOCKER = 0x4444aaaacdba5580282365e25b16309bd770ce4a00ec8464c337e8920233ad83;
+    // bytes32 constant SALT_OPERATOR = 0x4444aaaacdba5580282365e25b16309bd770ce4a00089586a306e5c9037ec220;
+    bytes32 constant SALT_OPERATOR = 0x4444aaaacdba5580282365e25b16309bd770ce4a00c83f39f830de690374d374;
     bytes32 constant SALT_YTOKEN = 0x4444aaaacdba5580282365e25b16309bd770ce4a0010b1e704a781420081c557;
     bytes32 constant SALT_NFTHelper = 0x4444aaaacdba5580282365e25b16309bd770ce4a0042ed51275b4d0d01d5acfa;
 }
