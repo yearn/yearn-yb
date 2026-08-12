@@ -7,9 +7,15 @@ import { IYBTokenVoting, IYBTokenVotingOption, IMajorityVoting, Action } from "s
 import { IYBGaugeController } from "src/interfaces/yb/IYBGaugeController.sol";
 import { IYBVotingEscrow } from "src/interfaces/yb/IYBVotingEscrow.sol";
 import { ILocker } from "src/interfaces/ILocker.sol";
+import { YB } from "src/utils/Constants.sol";
 
 interface IToken {
     function mint(uint256 amount, address to) external;
+}
+
+interface IFeeDistributor {
+    function claim(address receiver, uint256 epoch_count, bool use_vest) external;
+    function claimed_epoch_for(address user, address token) external view returns (uint256);
 }
 
 contract Operator {
@@ -21,6 +27,9 @@ contract Operator {
     address public immutable yToken;
     address public immutable gaugeController;
     address public immutable daoVoting;
+    address public feeDepositor;
+
+    uint256 public constant CLAIM_EPOCH_COUNT = 50;
 
     uint256 public cachedLockedAmount;
     mapping(address => bool) public gaugeVoters;
@@ -30,10 +39,17 @@ contract Operator {
     event GaugeVoterUpdated(address indexed voter, bool isVoter);
     event DaoVoterUpdated(address indexed voter, bool isVoter);
     event LockerUpdated(address indexed locker, bool isLocker);
+    event FeeDepositorUpdated(address indexed feeDepositor);
     event Swept(address indexed token, address indexed to, uint256 amount);
+    event FeesProcessed(address indexed feeDepositor, uint256 epochCount);
 
     modifier onlyOwner() {
         require(msg.sender == owner(), "!owner");
+        _;
+    }
+
+    modifier onlyFeeProcessor() {
+        require(msg.sender == feeDepositor || msg.sender == owner(), "!processor");
         _;
     }
 
@@ -130,9 +146,57 @@ contract Operator {
         emit LockerUpdated(_locker, _isLocker);
     }
 
+    function setFeeDepositor(address _feeDepositor) external onlyOwner {
+        require(_feeDepositor != address(0), "!valid");
+        feeDepositor = _feeDepositor;
+        emit FeeDepositorUpdated(_feeDepositor);
+    }
+
     function sweep(address _token, address to, uint256 amount) external onlyOwner {
         IERC20(_token).safeTransfer(to, amount);
         emit Swept(_token, to, amount);
+    }
+
+    /// @notice Claim fees for Locker, validate token list against FeeDistributor state, and pull token balances from Locker.
+    /// @dev Pull step transfers full Locker balances for each token to absorb prior third-party claims.
+    function processFees(
+        address[] calldata _tokens
+    ) external onlyFeeProcessor returns (address[] memory tokens, uint256[] memory amounts) {
+        address _feeDepositor = feeDepositor;
+        require(_feeDepositor != address(0), "!depositor");
+
+        _execute(
+            YB.FEE_DISTRIBUTOR,
+            abi.encodeWithSelector(IFeeDistributor.claim.selector, address(locker), CLAIM_EPOCH_COUNT, false)
+        );
+
+        uint256 length = _tokens.length;
+        address[] memory tempTokens = new address[](length);
+        uint256[] memory tempAmounts = new uint256[](length);
+        uint256 count;
+
+        for (uint256 i = 0; i < length; ++i) {
+            address _token = _tokens[i];
+            require(_token != address(0), "!token");
+            require(IFeeDistributor(YB.FEE_DISTRIBUTOR).claimed_epoch_for(address(locker), _token) != 0, "!token");
+
+            uint256 amount = IERC20(_token).balanceOf(address(locker));
+            if (amount == 0) continue;
+
+            _execute(_token, abi.encodeWithSelector(IERC20.transfer.selector, _feeDepositor, amount));
+            tempTokens[count] = _token;
+            tempAmounts[count] = amount;
+            ++count;
+        }
+
+        tokens = new address[](count);
+        amounts = new uint256[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            tokens[i] = tempTokens[i];
+            amounts[i] = tempAmounts[i];
+        }
+
+        emit FeesProcessed(_feeDepositor, CLAIM_EPOCH_COUNT);
     }
 
     // Lock Management

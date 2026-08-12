@@ -13,6 +13,8 @@ interface IOperator {
     event GaugeVoterUpdated(address indexed voter, bool isVoter);
     event DaoVoterUpdated(address indexed voter, bool isVoter);
     event LockerUpdated(address indexed locker, bool isLocker);
+    event FeeDepositorUpdated(address indexed feeDepositor);
+    event FeesProcessed(address indexed feeDepositor, uint256 epochCount);
 
     // =========================
     // Immutable / View Getters
@@ -32,6 +34,9 @@ interface IOperator {
 
     /// @notice The DAO voting (TokenVoting) contract address.
     function daoVoting() external view returns (address);
+
+    /// @notice FeeDepositor allowed to process and pull fees.
+    function feeDepositor() external view returns (address);
 
     /// @notice Returns the owner (proxied from the Locker).
     function owner() external view returns (address);
@@ -97,6 +102,14 @@ interface IOperator {
 
     /// @notice Set or unset an address as authorized locker manager.
     function authorizeLocker(address _locker, bool _isLocker) external;
+
+    /// @notice Configure FeeDepositor allowed to process fees.
+    function setFeeDepositor(address _feeDepositor) external;
+
+    /// @notice Claim fees for Locker and pull token balances to FeeDepositor.
+    function processFees(
+        address[] calldata _tokens
+    ) external returns (address[] memory tokens, uint256[] memory amounts);
 
     /// @notice Callback for receiving ERC721 NFTs (veYB position transfers)
     function nftTransferCallback(address from, uint256 tokenId, address recipient) external;

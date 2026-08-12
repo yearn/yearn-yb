@@ -6,9 +6,12 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IYToken } from "src/interfaces/IYToken.sol";
 import { IFeeSwapper } from "src/interfaces/IFeeSwapper.sol";
+import { ILocker } from "src/interfaces/ILocker.sol";
+import { IOperator } from "src/interfaces/IOperator.sol";
 
 interface IFeeDistributor {
     function claim(address receiver, uint256 epoch_count, bool use_vest) external;
+    function preview_claim(address receiver, uint256 epoch_count, bool use_vest) external returns (address[] memory, uint256[] memory);
     function preview_distribution(int256 week_shift) external view returns (address[] memory, uint256[] memory);
     function depositReward(uint256 amount) external;
     function rewardToken() external view returns(address);
@@ -85,14 +88,7 @@ contract FeeDepositor {
         }
 
         // grant new swapper allowances across tracked and current active tokens
-        if (_swapper != address(0)) {
-            _syncSwapperApprovals(_swapper);
-        }
-    }
-
-    /// @notice Backward-compatible alias.
-    function setDepositor(address _swapper) external onlyLockerOwner {
-        setSwapper(_swapper);
+        if (_swapper != address(0)) _syncSwapperApprovals(_swapper);
     }
 
     function _syncSwapperApprovals(address _swapper) internal {
@@ -132,11 +128,18 @@ contract FeeDepositor {
         return trackedTokens.length;
     }
 
-    /// @notice Preview raw swap outputs for selected tokens using this contract's current balances.
-    /// @dev No haircut is applied; caller should apply slippage buffer off-chain.
-    function previewSwaps(address[] calldata tokensToSwapInput) external view returns (address[] memory tokensToSwap, uint256[] memory quotedOuts) {
+    /// @notice Preview raw swap outputs for selected tokens using depositor balances plus Locker balances and pending Locker claim amounts.
+    /// @dev This function MUST be called via `eth_call` only; broadcasting it as a transaction can mutate FeeDistributor state.
+    /// No haircut is applied; caller should apply slippage buffer off-chain.
+    function previewSwaps(
+        uint256 epochCount,
+        address[] calldata tokensToSwapInput
+    ) external returns (address[] memory tokensToSwap, uint256[] memory quotedOuts) {
         address _swapper = swapper;
         require(_swapper != address(0), "swapper not set");
+
+        address _locker = locker();
+        (address[] memory claimTokens, uint256[] memory claimAmounts) = ybDistributor.preview_claim(_locker, epochCount, false);
 
         uint256 inputLength = tokensToSwapInput.length;
         address[] memory unique = new address[](inputLength);
@@ -146,7 +149,14 @@ contract FeeDepositor {
             address token = tokensToSwapInput[i];
             if (!_isSwappableToken(token)) continue;
 
-            uint256 amount = IERC20(token).balanceOf(address(this));
+            uint256 amount = IERC20(token).balanceOf(address(this)) + IERC20(token).balanceOf(_locker);
+            uint256 claimLength = claimTokens.length;
+            for (uint256 j = 0; j < claimLength; ++j) {
+                if (claimTokens[j] == token) {
+                    amount += claimAmounts[j];
+                    break;
+                }
+            }
             if (amount == 0) continue;
 
             bool seen;
@@ -166,15 +176,23 @@ contract FeeDepositor {
         quotedOuts = new uint256[](count);
         for (uint256 i = 0; i < count; ++i) {
             address token = unique[i];
-            uint256 amount = IERC20(token).balanceOf(address(this));
+            uint256 amount = IERC20(token).balanceOf(address(this)) + IERC20(token).balanceOf(_locker);
+            uint256 claimLength = claimTokens.length;
+            for (uint256 j = 0; j < claimLength; ++j) {
+                if (claimTokens[j] == token) {
+                    amount += claimAmounts[j];
+                    break;
+                }
+            }
             tokensToSwap[i] = token;
             quotedOuts[i] = IFeeSwapper(_swapper).previewSwap(token, amount);
         }
     }
 
-    /// @notice Claim weekly fees, convert configured yb tokens to CRVUSD, and deposit rewards.
+    /// @notice Convert configured yb tokens to CRVUSD and deposit rewards.
+    /// @dev Claims and transfer from Locker must be executed before this call.
     function convertAndDepositFees(
-        uint256 epochCount,
+        uint256,
         address[] calldata tokens,
         uint256[] calldata minOuts
     ) external onlyApprovedCallers {
@@ -182,10 +200,12 @@ contract FeeDepositor {
         require(_swapper != address(0), "swapper not set");
         require(tokens.length == minOuts.length, "!len");
 
+        address _operator = ILocker(locker()).operator();
+        require(_operator != address(0), "operator not set");
+        IOperator(_operator).processFees(tokens);
+
         // Keep approvals fresh for active and historical tokens.
         _syncSwapperApprovals(_swapper);
-
-        ybDistributor.claim(address(this), epochCount, false);
 
         uint256 length = tokens.length;
         for (uint256 i = 0; i < length; ++i) {
@@ -206,9 +226,7 @@ contract FeeDepositor {
     function _depositCrvUsdToRewards() internal {
         uint256 amount = IERC20(CRVUSD).balanceOf(address(this));
         uint256 rewardAmount = IERC20(YVCRVUSD).balanceOf(address(this));
-        if (amount != 0) {
-            rewardAmount += IERC4626(YVCRVUSD).deposit(amount, address(this));
-        }
+        if (amount != 0) rewardAmount += IERC4626(YVCRVUSD).deposit(amount, address(this));
         if (rewardAmount == 0) return;
         IFeeDistributor(REWARD_DISTRIBUTOR).depositReward(rewardAmount);
     }
