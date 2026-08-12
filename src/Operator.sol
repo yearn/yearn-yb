@@ -29,8 +29,6 @@ contract Operator {
     address public immutable daoVoting;
     address public feeDepositor;
 
-    uint256 public constant CLAIM_EPOCH_COUNT = 50;
-
     uint256 public cachedLockedAmount;
     mapping(address => bool) public gaugeVoters;
     mapping(address => bool) public daoVoters;
@@ -147,7 +145,6 @@ contract Operator {
     }
 
     function setFeeDepositor(address _feeDepositor) external onlyOwner {
-        require(_feeDepositor != address(0), "!valid");
         feeDepositor = _feeDepositor;
         emit FeeDepositorUpdated(_feeDepositor);
     }
@@ -161,19 +158,16 @@ contract Operator {
     /// @dev Pull step transfers full Locker balances for each token to absorb prior third-party claims.
     function processFees(
         address[] calldata _tokens
-    ) external onlyFeeProcessor returns (address[] memory tokens, uint256[] memory amounts) {
+    ) external onlyFeeProcessor {
         address _feeDepositor = feeDepositor;
         require(_feeDepositor != address(0), "!depositor");
 
         _execute(
             YB.FEE_DISTRIBUTOR,
-            abi.encodeWithSelector(IFeeDistributor.claim.selector, address(locker), CLAIM_EPOCH_COUNT, false)
+            abi.encodeWithSelector(IFeeDistributor.claim.selector, address(locker), YB.FEE_CLAIM_EPOCH_COUNT, false)
         );
 
         uint256 length = _tokens.length;
-        address[] memory tempTokens = new address[](length);
-        uint256[] memory tempAmounts = new uint256[](length);
-        uint256 count;
 
         for (uint256 i = 0; i < length; ++i) {
             address _token = _tokens[i];
@@ -183,20 +177,14 @@ contract Operator {
             uint256 amount = IERC20(_token).balanceOf(address(locker));
             if (amount == 0) continue;
 
-            _execute(_token, abi.encodeWithSelector(IERC20.transfer.selector, _feeDepositor, amount));
-            tempTokens[count] = _token;
-            tempAmounts[count] = amount;
-            ++count;
+            (, bytes memory result) = _execute(
+                _token,
+                abi.encodeWithSelector(IERC20.transfer.selector, _feeDepositor, amount)
+            );
+            require(result.length == 0 || (result.length == 32 && abi.decode(result, (bool))), "!transfer");
         }
 
-        tokens = new address[](count);
-        amounts = new uint256[](count);
-        for (uint256 i = 0; i < count; ++i) {
-            tokens[i] = tempTokens[i];
-            amounts[i] = tempAmounts[i];
-        }
-
-        emit FeesProcessed(_feeDepositor, CLAIM_EPOCH_COUNT);
+        emit FeesProcessed(_feeDepositor, YB.FEE_CLAIM_EPOCH_COUNT);
     }
 
     // Lock Management

@@ -103,13 +103,11 @@ interface IOperator {
     /// @notice Set or unset an address as authorized locker manager.
     function authorizeLocker(address _locker, bool _isLocker) external;
 
-    /// @notice Configure FeeDepositor allowed to process fees.
+    /// @notice Configure the FeeDepositor allowed to process fees; set zero to disable processing.
     function setFeeDepositor(address _feeDepositor) external;
 
     /// @notice Claim fees for Locker and pull token balances to FeeDepositor.
-    function processFees(
-        address[] calldata _tokens
-    ) external returns (address[] memory tokens, uint256[] memory amounts);
+    function processFees(address[] calldata _tokens) external;
 
     /// @notice Callback for receiving ERC721 NFTs (veYB position transfers)
     function nftTransferCallback(address from, uint256 tokenId, address recipient) external;

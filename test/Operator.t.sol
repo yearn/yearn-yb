@@ -218,14 +218,16 @@ contract OperatorTest is Setup {
 
         uint256 depositorBefore = IERC20(tokenToPull).balanceOf(feeDepositor);
         vm.prank(feeDepositor);
-        (address[] memory processedTokens, uint256[] memory processedAmounts) = operator.processFees(tokens);
+        operator.processFees(tokens);
 
         assertEq(IERC20(tokenToPull).balanceOf(address(locker)), 0);
-        assertEq(processedTokens.length, 1);
-        assertEq(processedAmounts.length, 1);
-        assertEq(processedTokens[0], tokenToPull);
-        assertGe(processedAmounts[0], seededBalance);
-        assertEq(IERC20(tokenToPull).balanceOf(feeDepositor) - depositorBefore, processedAmounts[0]);
+        assertGe(IERC20(tokenToPull).balanceOf(feeDepositor) - depositorBefore, seededBalance);
+    }
+
+    function test_SetFeeDepositorCanDisableProcessing() public {
+        operator.setFeeDepositor(address(0xBEEF));
+        operator.setFeeDepositor(address(0));
+        assertEq(operator.feeDepositor(), address(0));
     }
 
     function test_ProcessFeesRevertsWhenNotAuthorized() public {

@@ -8,13 +8,12 @@ import { IYToken } from "src/interfaces/IYToken.sol";
 import { IFeeSwapper } from "src/interfaces/IFeeSwapper.sol";
 import { ILocker } from "src/interfaces/ILocker.sol";
 import { IOperator } from "src/interfaces/IOperator.sol";
+import { YB } from "src/utils/Constants.sol";
 
 interface IFeeDistributor {
-    function claim(address receiver, uint256 epoch_count, bool use_vest) external;
     function preview_claim(address receiver, uint256 epoch_count, bool use_vest) external returns (address[] memory, uint256[] memory);
     function preview_distribution(int256 week_shift) external view returns (address[] memory, uint256[] memory);
     function depositReward(uint256 amount) external;
-    function rewardToken() external view returns(address);
 }
 
 contract FeeDepositor {
@@ -55,9 +54,8 @@ contract FeeDepositor {
         _;
     }
 
-    constructor(address _ybDistributor) {
-        require(_ybDistributor != address(0), "!valid");
-        ybDistributor = IFeeDistributor(_ybDistributor);
+    constructor() {
+        ybDistributor = IFeeDistributor(YB.FEE_DISTRIBUTOR);
 
         CRVUSD = IERC4626(YVCRVUSD).asset();
 
@@ -128,18 +126,18 @@ contract FeeDepositor {
         return trackedTokens.length;
     }
 
-    /// @notice Preview raw swap outputs for selected tokens using depositor balances plus Locker balances and pending Locker claim amounts.
-    /// @dev This function MUST be called via `eth_call` only; broadcasting it as a transaction can mutate FeeDistributor state.
+    /// @notice Preview raw swap outputs after simulating the same claim used by execution.
+    /// @dev MUST be called via `eth_call`; the simulated claim transfers pending fees to the Locker.
     /// No haircut is applied; caller should apply slippage buffer off-chain.
     function previewSwaps(
-        uint256 epochCount,
         address[] calldata tokensToSwapInput
     ) external returns (address[] memory tokensToSwap, uint256[] memory quotedOuts) {
         address _swapper = swapper;
         require(_swapper != address(0), "swapper not set");
 
         address _locker = locker();
-        (address[] memory claimTokens, uint256[] memory claimAmounts) = ybDistributor.preview_claim(_locker, epochCount, false);
+        // preview_claim performs the claim, so the post-call Locker balance already includes pending fees.
+        ybDistributor.preview_claim(_locker, YB.FEE_CLAIM_EPOCH_COUNT, false);
 
         uint256 inputLength = tokensToSwapInput.length;
         address[] memory unique = new address[](inputLength);
@@ -150,13 +148,6 @@ contract FeeDepositor {
             if (!_isSwappableToken(token)) continue;
 
             uint256 amount = IERC20(token).balanceOf(address(this)) + IERC20(token).balanceOf(_locker);
-            uint256 claimLength = claimTokens.length;
-            for (uint256 j = 0; j < claimLength; ++j) {
-                if (claimTokens[j] == token) {
-                    amount += claimAmounts[j];
-                    break;
-                }
-            }
             if (amount == 0) continue;
 
             bool seen;
@@ -177,22 +168,13 @@ contract FeeDepositor {
         for (uint256 i = 0; i < count; ++i) {
             address token = unique[i];
             uint256 amount = IERC20(token).balanceOf(address(this)) + IERC20(token).balanceOf(_locker);
-            uint256 claimLength = claimTokens.length;
-            for (uint256 j = 0; j < claimLength; ++j) {
-                if (claimTokens[j] == token) {
-                    amount += claimAmounts[j];
-                    break;
-                }
-            }
             tokensToSwap[i] = token;
             quotedOuts[i] = IFeeSwapper(_swapper).previewSwap(token, amount);
         }
     }
 
-    /// @notice Convert configured yb tokens to CRVUSD and deposit rewards.
-    /// @dev Claims and transfer from Locker must be executed before this call.
+    /// @notice Claim Locker fees, convert configured yb tokens to CRVUSD, and deposit rewards.
     function convertAndDepositFees(
-        uint256,
         address[] calldata tokens,
         uint256[] calldata minOuts
     ) external onlyApprovedCallers {
