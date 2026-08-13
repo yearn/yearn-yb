@@ -4,6 +4,12 @@ pragma solidity ^0.8.20;
 import { Setup } from "test/utils/Setup.sol";
 import { Operator } from "src/Operator.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { YB } from "src/utils/Constants.sol";
+
+interface IFeeDistributorView {
+    function preview_distribution(int256 week_shift) external view returns (address[] memory, uint256[] memory);
+}
 
 contract OperatorTest is Setup {
     address public gaugeVoter = address(0x2);
@@ -14,7 +20,9 @@ contract OperatorTest is Setup {
     event GaugeVoterUpdated(address indexed voter, bool isVoter);
     event DaoVoterUpdated(address indexed voter, bool isVoter);
     event LockerUpdated(address indexed locker, bool isLocker);
+    event FeeDepositorUpdated(address indexed feeDepositor);
     event Swept(address indexed token, address indexed to, uint256 amount);
+    event FeesProcessed(address indexed feeDepositor, uint256 epochCount);
 
     function setUp() public override {
         super.setUp();
@@ -196,6 +204,53 @@ contract OperatorTest is Setup {
         operator.sweep(address(token), user, 100e18);
     }
 
+    function test_ProcessFees() public {
+        address feeDepositor = address(0xBEEF);
+        address tokenToPull = _getAnyDistributorToken();
+        operator.setFeeDepositor(feeDepositor);
+
+        // Simulate prior third-party claim already sitting on Locker.
+        uint256 seededBalance = 10e18;
+        deal(tokenToPull, address(locker), seededBalance);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = tokenToPull;
+
+        uint256 depositorBefore = IERC20(tokenToPull).balanceOf(feeDepositor);
+        vm.prank(feeDepositor);
+        operator.processFees(tokens);
+
+        assertEq(IERC20(tokenToPull).balanceOf(address(locker)), 0);
+        assertGe(IERC20(tokenToPull).balanceOf(feeDepositor) - depositorBefore, seededBalance);
+    }
+
+    function test_SetFeeDepositorCanDisableProcessing() public {
+        operator.setFeeDepositor(address(0xBEEF));
+        operator.setFeeDepositor(address(0));
+        assertEq(operator.feeDepositor(), address(0));
+    }
+
+    function test_ProcessFeesRevertsWhenNotAuthorized() public {
+        operator.setFeeDepositor(address(0xBEEF));
+        address[] memory tokens = new address[](1);
+        tokens[0] = _getAnyDistributorToken();
+        vm.prank(user);
+        vm.expectRevert("!processor");
+        operator.processFees(tokens);
+    }
+
+    function test_ProcessFeesRevertsOnInvalidToken() public {
+        address feeDepositor = address(0xBEEF);
+        operator.setFeeDepositor(feeDepositor);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(0xDEAD);
+
+        vm.prank(feeDepositor);
+        vm.expectRevert("!token");
+        operator.processFees(tokens);
+    }
+
     function getGaugeVoteData() public view returns (address[] memory gauges, uint256[] memory weights) {
         uint256 n_gauges = 2;//gaugeController.n_gauges();
         gauges = new address[](n_gauges);
@@ -209,6 +264,15 @@ contract OperatorTest is Setup {
             k++;
         }
         return (gauges, weights);
+    }
+
+    function _getAnyDistributorToken() internal view returns (address) {
+        int256[4] memory shifts = [int256(0), int256(-1), int256(1), int256(2)];
+        for (uint256 i = 0; i < shifts.length; ++i) {
+            (address[] memory tokens, ) = IFeeDistributorView(YB.FEE_DISTRIBUTOR).preview_distribution(shifts[i]);
+            if (tokens.length != 0) return tokens[0];
+        }
+        revert("no dist token");
     }
 
     // ============================================
