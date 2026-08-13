@@ -13,6 +13,9 @@ import { ILocker } from "src/interfaces/ILocker.sol";
 import { Protocol, YB } from "src/utils/Constants.sol";
 
 contract MigrateLockerTest is Test {
+    // Pre-migration state where the old Locker owns its NFT and transfers are enabled.
+    uint256 internal constant MIGRATION_BLOCK = 24_249_541;
+
     uint256 public mainnetFork;
 
     IERC20 public token;
@@ -26,7 +29,7 @@ contract MigrateLockerTest is Test {
 
     function setUp() public {
         string memory mainnetRpcUrl = vm.envOr("MAINNET_RPC_URL", string("https://eth.llamarpc.com"));
-        mainnetFork = vm.createSelectFork(mainnetRpcUrl);
+        mainnetFork = vm.createSelectFork(mainnetRpcUrl, MIGRATION_BLOCK);
 
         token = IERC20(YB.TOKEN);
         escrow = IYBVotingEscrow(YB.VEYB);
